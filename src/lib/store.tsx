@@ -26,6 +26,16 @@ type StoreValue = {
   pushRecent: (term: string) => void;
   cartCount: number;
   totals: { items: number; mrp: number; discount: number; delivery: number; total: number };
+  isLoggedIn: boolean;
+  user: { mobile: string } | null;
+  authModalOpen: boolean;
+  openLoginModal: (onSuccess?: () => void) => void;
+  closeLoginModal: () => void;
+  login: (mobile: string) => void;
+  logout: () => void;
+  legalModalType: "terms" | "privacy" | "refund" | null;
+  openLegalModal: (type: "terms" | "privacy" | "refund") => void;
+  closeLegalModal: () => void;
 };
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -130,6 +140,56 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, [cart]);
 
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState<{ mobile: string } | null>(null);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [onSuccessCallback, setOnSuccessCallback] = useState<(() => void) | null>(null);
+
+  useEffect(() => {
+    setIsLoggedIn(localStorage.getItem("minora.isLoggedIn") === "true");
+    setUser(read<{ mobile: string } | null>("minora.user", null));
+  }, []);
+
+  const openLoginModal = useCallback((onSuccess?: () => void) => {
+    setOnSuccessCallback(() => onSuccess || null);
+    setAuthModalOpen(true);
+  }, []);
+
+  const closeLoginModal = useCallback(() => {
+    setAuthModalOpen(false);
+    setOnSuccessCallback(null);
+  }, []);
+
+  const login = useCallback((mobile: string) => {
+    setIsLoggedIn(true);
+    const userData = { mobile };
+    setUser(userData);
+    localStorage.setItem("minora.isLoggedIn", "true");
+    localStorage.setItem("minora.user", JSON.stringify(userData));
+    setAuthModalOpen(false);
+    if (onSuccessCallback) {
+      onSuccessCallback();
+      setOnSuccessCallback(null);
+    }
+  }, [onSuccessCallback]);
+
+  const logout = useCallback(() => {
+    setIsLoggedIn(false);
+    setUser(null);
+    localStorage.removeItem("minora.isLoggedIn");
+    localStorage.removeItem("minora.user");
+  }, []);
+
+  const [legalModalType, setLegalModalType] = useState<"terms" | "privacy" | "refund" | null>(null);
+
+  const openLegalModal = useCallback((type: "terms" | "privacy" | "refund") => {
+    setLegalModalType(type);
+  }, []);
+
+  const closeLegalModal = useCallback(() => {
+    setLegalModalType(null);
+  }, []);
+
   const value: StoreValue = {
     cart,
     wishlist,
@@ -145,6 +205,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     pushRecent,
     cartCount: cart.reduce((n, l) => n + l.qty, 0),
     totals,
+    isLoggedIn,
+    user,
+    authModalOpen,
+    openLoginModal,
+    closeLoginModal,
+    login,
+    logout,
+    legalModalType,
+    openLegalModal,
+    closeLegalModal,
   };
 
   return (

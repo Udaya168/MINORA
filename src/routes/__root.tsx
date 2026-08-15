@@ -6,6 +6,7 @@ import {
   useRouter,
   HeadContent,
   Scripts,
+  ScrollRestoration,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
@@ -13,10 +14,13 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { StoreProvider } from "@/lib/store";
 import { Header } from "@/components/site/Header";
+import { CartDrawer } from "@/components/site/CartDrawer";
 import { Footer } from "@/components/site/Footer";
 import { BottomNav } from "@/components/site/BottomNav";
 import { BackToTop } from "@/components/site/BackToTop";
 import { Toaster } from "@/components/ui/sonner";
+import { LoginModal } from "@/components/auth/LoginModal";
+import { LegalPolicyModal } from "@/components/site/LegalPolicyModal";
 
 function NotFoundComponent() {
   return (
@@ -148,7 +152,11 @@ function RootComponent() {
           <Footer />
           <BottomNav />
           <BackToTop />
+          <CartDrawer />
+          <LoginModal />
+          <LegalPolicyModal />
           <Toaster position="bottom-center" />
+          <ScrollRestoration />
         </div>
       </StoreProvider>
     </QueryClientProvider>

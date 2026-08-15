@@ -11,7 +11,7 @@ const items = [
 ] as const;
 
 export function BottomNav() {
-  const { cartCount, wishlist } = useStore();
+  const { cartCount, wishlist, isLoggedIn, openLoginModal } = useStore();
 
   const badgeFor = (label: string) =>
     label === "Cart" ? cartCount : label === "Wishlist" ? wishlist.length : 0;
@@ -25,6 +25,24 @@ export function BottomNav() {
         {items.map((item) => {
           const Icon = item.icon;
           const count = badgeFor(item.label);
+          
+          if (item.label === "Account" && !isLoggedIn) {
+            return (
+              <li key={item.label}>
+                <button
+                  type="button"
+                  onClick={() => openLoginModal()}
+                  className="w-full relative flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium text-muted-foreground hover:text-primary transition-colors"
+                >
+                  <span className="relative">
+                    <Icon size={20} />
+                  </span>
+                  {item.label}
+                </button>
+              </li>
+            );
+          }
+
           return (
             <li key={item.label}>
               <Link

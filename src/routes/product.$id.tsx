@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createFileRoute, Link, useNavigate, notFound } from "@tanstack/react-router";
 import {
   Heart,
@@ -61,12 +61,26 @@ const REVIEWS = [
 
 function ProductPage() {
   const { product } = Route.useLoaderData();
-  const { addToCart, isWished, toggleWishlist } = useStore();
+  const { addToCart, isWished, toggleWishlist, isLoggedIn, openLoginModal } = useStore();
   const navigate = useNavigate();
   const [active, setActive] = useState(0);
   const [size, setSize] = useState<string | null>(null);
   const [pincode, setPincode] = useState("");
   const [zoom, setZoom] = useState(false);
+
+  // For sticky purchase bar detection
+  const [showStickyBar, setShowStickyBar] = useState(false);
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 600) {
+        setShowStickyBar(true);
+      } else {
+        setShowStickyBar(false);
+      }
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const wished = isWished(product.id);
   const similar = PRODUCTS.filter(
@@ -84,7 +98,8 @@ function ProductPage() {
   const add = () => {
     if (!requireSize()) return;
     addToCart(product.id, size!, 1);
-    toast.success("Added to cart", { description: `${product.name} · Size ${size}` });
+    toast.success("Added to Bag", { description: `${product.name} · Size ${size}` });
+    window.dispatchEvent(new CustomEvent("open-cart-drawer"));
   };
 
   const buyNow = () => {
@@ -96,7 +111,7 @@ function ProductPage() {
   const dist = [72, 18, 6, 2, 2];
 
   return (
-    <div className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5">
+    <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6">
       <Breadcrumb
         items={[
           { label: product.group === "men" ? "Men" : product.group === "kids" ? "Kids" : "Women", to: "/c/$slug", params: { slug: product.group } },
@@ -105,196 +120,196 @@ function ProductPage() {
         ]}
       />
 
-      <div className="mt-4 gap-8 lg:flex">
-        <div className="lg:sticky lg:top-36 lg:h-fit lg:w-[46%]">
-          <div className="flex flex-col-reverse gap-3 sm:flex-row">
-            <ul className="no-scrollbar flex gap-2 overflow-x-auto sm:flex-col">
-              {product.images.map((img, i) => (
-                <li key={i}>
-                  <button
-                    type="button"
-                    onClick={() => setActive(i)}
-                    aria-label={`View image ${i + 1}`}
-                    aria-current={i === active}
-                    className={`h-20 w-16 overflow-hidden rounded-md border ${i === active ? "border-primary" : "border-border"}`}
-                  >
-                    <img src={img} alt="" loading="lazy" width={768} height={1024} className="h-full w-full object-cover" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <div
-              className="relative min-w-0 flex-1 overflow-hidden rounded-xl border border-border bg-secondary"
-              onMouseEnter={() => setZoom(true)}
-              onMouseLeave={() => setZoom(false)}
-            >
-              <img
-                src={product.images[active]}
-                alt={product.name}
-                width={768}
-                height={1024}
-                className={`aspect-3/4 w-full object-cover transition-transform duration-300 ${zoom ? "scale-125" : "scale-100"}`}
-              />
-            </div>
+      <div className="mt-8 gap-12 lg:flex">
+        {/* Left Column: Stacked Image Gallery */}
+        <div className="lg:w-[55%] space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {product.images.map((img, i) => (
+              <div
+                key={i}
+                className="relative overflow-hidden bg-secondary/20 border border-border"
+                onClick={() => setActive(i)}
+              >
+                <img
+                  src={img}
+                  alt={`${product.name} view ${i + 1}`}
+                  width={768}
+                  height={1024}
+                  className="aspect-[3/4] w-full object-cover transition-transform duration-500 hover:scale-105"
+                />
+              </div>
+            ))}
           </div>
         </div>
 
-        <div className="mt-6 min-w-0 flex-1 lg:mt-0">
-          <h1 className="font-display text-xl sm:text-2xl">{product.name}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{product.categoryLabel}</p>
-
-          <div className="mt-3 flex items-center gap-2">
-            <Stars rating={product.rating} size={13} />
-            <span className="text-sm text-muted-foreground">
-              {product.reviewCount.toLocaleString("en-IN")} ratings
+        {/* Right Column: Dynamic Info Panel */}
+        <div className="mt-8 min-w-0 flex-1 lg:mt-0 lg:sticky lg:top-28 lg:h-fit">
+          <div className="space-y-4 pb-6 border-b border-border">
+            <span className="text-[10px] font-bold tracking-[0.2em] text-primary uppercase block">
+              {product.categoryLabel}
             </span>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-baseline gap-2 border-t border-border pt-4">
-            <span className="text-2xl font-semibold">{inr(product.price)}</span>
-            <span className="text-sm text-muted-foreground line-through">{inr(product.originalPrice)}</span>
-            <span className="text-sm font-semibold text-success">{product.discount}% OFF</span>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">Inclusive of all taxes</p>
-
-          <ul className="mt-4 flex flex-wrap gap-2 text-xs">
-            <li className="inline-flex items-center gap-1.5 rounded-full bg-primary-soft px-3 py-1 text-primary"><Truck size={13} /> Free Delivery</li>
-            <li className="inline-flex items-center gap-1.5 rounded-full bg-primary-soft px-3 py-1 text-primary"><BadgeIndianRupee size={13} /> Cash on Delivery Available</li>
-            <li className="inline-flex items-center gap-1.5 rounded-full bg-primary-soft px-3 py-1 text-primary"><RefreshCcw size={13} /> 7-Day Returns</li>
-          </ul>
-
-          <div className="mt-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Select Size</h2>
-              <button type="button" className="text-xs font-medium text-primary hover:underline">Size chart</button>
+            <h1 className="font-display text-3xl tracking-wide leading-tight text-foreground">{product.name}</h1>
+            
+            <div className="flex items-center gap-3">
+              <Stars rating={product.rating} size={11} />
+              <span className="text-xs text-muted-foreground tracking-wider font-light">
+                {product.reviewCount.toLocaleString("en-IN")} CURATED REVIEWS
+              </span>
             </div>
-            <div className="mt-2 flex flex-wrap gap-2">
+          </div>
+
+          <div className="py-6 border-b border-border space-y-1">
+            <div className="flex items-baseline gap-3">
+              <span className="text-2xl font-bold tracking-wide">{inr(product.price)}</span>
+              <span className="text-sm text-muted-foreground line-through font-light">{inr(product.originalPrice)}</span>
+              <span className="text-xs font-bold text-success tracking-wider">{product.discount}% OFF</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground tracking-widest uppercase">Inclusive of all local taxes</p>
+          </div>
+
+          {/* Size Curator */}
+          <div className="py-6 border-b border-border space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-bold tracking-widest uppercase">Select Size</h2>
+              <button type="button" className="text-[10px] font-bold tracking-widest text-primary uppercase hover:underline">Size Guide</button>
+            </div>
+            <div className="flex flex-wrap gap-2 pt-1">
               {product.sizes.map((s) => (
                 <button
                   key={s}
                   type="button"
                   onClick={() => setSize(s)}
                   aria-pressed={size === s}
-                  className={`min-w-11 rounded-md border px-3 py-2 text-sm transition-colors ${size === s ? "border-primary bg-primary-soft text-primary" : "border-border hover:border-primary/50"}`}
+                  className={`min-w-12 border px-4 py-2.5 text-xs font-semibold tracking-wider transition-all duration-200 ${
+                    size === s
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border hover:border-primary/50 text-foreground"
+                  }`}
                 >
                   {s}
                 </button>
               ))}
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">Colours available: {product.colors.join(", ")}</p>
+            <p className="text-[10px] text-muted-foreground tracking-wide pt-1">Colours available: {product.colors.join(", ")}</p>
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-3">
+          {/* Primary CTA controls */}
+          <div className="py-6 border-b border-border flex flex-wrap gap-3">
             <button
               type="button"
               onClick={add}
-              className="flex-1 rounded-md border border-primary px-6 py-3 text-sm font-semibold text-primary transition-colors hover:bg-primary-soft"
+              className="flex-1 border border-primary bg-transparent text-primary py-3.5 text-xs font-bold tracking-[0.2em] uppercase hover:bg-primary hover:text-primary-foreground transition-all duration-300"
             >
-              Add to Cart
+              ADD TO BAG
             </button>
             <button
               type="button"
               onClick={buyNow}
-              className="flex-1 rounded-md bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+              className="flex-1 border border-primary bg-primary text-primary-foreground py-3.5 text-xs font-bold tracking-[0.2em] uppercase hover:bg-primary/95 transition-all duration-300"
             >
-              Buy Now
+              BUY NOW
             </button>
             <button
               type="button"
               onClick={() => {
+                if (!isLoggedIn) {
+                  openLoginModal(() => {
+                    toggleWishlist(product.id);
+                    toast.success("Saved to wishlist");
+                  });
+                  return;
+                }
                 toggleWishlist(product.id);
                 toast.success(wished ? "Removed from wishlist" : "Saved to wishlist");
               }}
               aria-label="Toggle wishlist"
               aria-pressed={wished}
-              className="grid h-12 w-12 place-items-center rounded-md border border-border transition-transform hover:scale-105"
+              className="grid h-12 w-12 place-items-center border border-border bg-transparent text-foreground transition-all duration-300 hover:border-primary hover:text-primary"
             >
-              <Heart size={18} className={wished ? "fill-primary text-primary" : ""} />
+              <Heart size={16} className={wished ? "fill-primary text-primary" : ""} />
             </button>
           </div>
 
-          <div className="mt-6 rounded-lg border border-border p-4">
-            <h2 className="text-sm font-semibold">Delivery Options</h2>
-            <div className="mt-2 flex gap-2">
+          {/* Pincode Checker */}
+          <div className="py-6 border-b border-border space-y-3">
+            <h2 className="text-xs font-bold tracking-widest uppercase">Delivery & Availability</h2>
+            <div className="flex gap-2 pt-1">
               <input
                 value={pincode}
                 onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 inputMode="numeric"
-                placeholder="Enter pincode"
+                placeholder="ENTER PINCODE"
                 aria-label="Delivery pincode"
-                className="w-40 rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                className="w-44 border border-border bg-transparent px-4 py-2.5 text-xs tracking-widest outline-none focus:border-primary placeholder:text-muted-foreground/50"
               />
               <button
                 type="button"
                 onClick={() =>
                   pincode.length === 6
-                    ? toast.success(`Delivery by ${new Date(Date.now() + 4 * 864e5).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`)
+                    ? toast.success(`Delivery expected by ${new Date(Date.now() + 4 * 864e5).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`)
                     : toast.error("Enter a valid 6-digit pincode")
                 }
-                className="rounded-md border border-primary px-4 py-2 text-sm font-medium text-primary"
+                className="border border-primary bg-primary text-primary-foreground px-5 text-xs font-bold tracking-widest uppercase hover:bg-transparent hover:text-primary transition-all duration-300"
               >
-                Check
+                CHECK
               </button>
             </div>
-            <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Store size={13} /> Sold by {product.seller}
+            <p className="text-[10px] text-muted-foreground tracking-wide">
+              Sold by <span className="font-semibold text-foreground">{product.seller}</span>
             </p>
           </div>
 
-          <div className="mt-6 divide-y divide-border rounded-lg border border-border">
+          {/* Luxury Accordions */}
+          <div className="mt-6 divide-y divide-border border-t border-b border-border">
             {accordion(product).map((sec) => (
-              <details key={sec.title} className="group px-4">
-                <summary className="flex cursor-pointer list-none items-center justify-between py-3 text-sm font-medium">
+              <details key={sec.title} className="group py-1">
+                <summary className="flex cursor-pointer list-none items-center justify-between py-3.5 text-xs font-bold tracking-widest uppercase text-foreground/90">
                   {sec.title}
-                  <ChevronDown size={16} className="transition-transform group-open:rotate-180" />
+                  <ChevronDown size={14} className="transition-transform duration-300 group-open:rotate-180 text-muted-foreground" />
                 </summary>
-                <p className="pb-4 text-sm text-muted-foreground">{sec.body}</p>
+                <p className="pb-4 text-xs font-light tracking-wide leading-relaxed text-muted-foreground">{sec.body}</p>
               </details>
             ))}
           </div>
         </div>
       </div>
 
-      <section aria-label="Ratings and reviews" className="mt-12">
-        <h2 className="font-display text-xl">Ratings & Reviews</h2>
-        <div className="mt-4 gap-8 md:flex">
-          <div className="md:w-64">
+      {/* Ratings & Reviews Section */}
+      <section aria-label="Ratings and reviews" className="mt-20 border-t border-border pt-16">
+        <h2 className="font-display text-2xl sm:text-3xl tracking-wide">Customer Reviews</h2>
+        <div className="mt-8 gap-12 md:flex">
+          <div className="md:w-72 space-y-4">
             <div className="flex items-end gap-2">
-              <span className="font-display text-4xl">{product.rating.toFixed(1)}</span>
-              <span className="pb-1 text-sm text-muted-foreground">/ 5</span>
+              <span className="font-display text-5xl font-light">{product.rating.toFixed(1)}</span>
+              <span className="pb-1.5 text-xs tracking-wider text-muted-foreground uppercase">OUT OF 5 STARS</span>
             </div>
-            <p className="text-sm text-muted-foreground">
-              {product.reviewCount.toLocaleString("en-IN")} ratings
+            <p className="text-xs text-muted-foreground tracking-wider font-light">
+              Based on {product.reviewCount.toLocaleString("en-IN")} verified purchase reviews
             </p>
-            <ul className="mt-3 space-y-1.5">
+            <ul className="mt-4 space-y-2">
               {dist.map((pctv, i) => (
-                <li key={i} className="flex items-center gap-2 text-xs">
-                  <span className="w-6">{5 - i}★</span>
-                  <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
-                    <span className="block h-full rounded-full bg-success" style={{ width: `${pctv}%` }} />
+                <li key={i} className="flex items-center gap-3 text-[10px] font-medium tracking-wider">
+                  <span className="w-8">{5 - i} ★</span>
+                  <span className="h-1 flex-1 overflow-hidden bg-secondary/40">
+                    <span className="block h-full bg-primary" style={{ width: `${pctv}%` }} />
                   </span>
                   <span className="w-8 text-right text-muted-foreground">{pctv}%</span>
                 </li>
               ))}
             </ul>
           </div>
-          <div className="mt-6 min-w-0 flex-1 md:mt-0">
-            <ul className="no-scrollbar mb-4 flex gap-2 overflow-x-auto">
-              {product.images.slice(0, 4).map((img, i) => (
-                <li key={i} className="shrink-0">
-                  <img src={img} alt={`Customer photo ${i + 1}`} loading="lazy" width={768} height={1024} className="h-20 w-16 rounded-md object-cover" />
-                </li>
-              ))}
-            </ul>
+          <div className="mt-8 min-w-0 flex-1 md:mt-0 space-y-4">
             <ul className="space-y-4">
               {REVIEWS.map((r) => (
-                <li key={r.name} className="rounded-lg border border-border p-4">
-                  <div className="flex items-center gap-2">
-                    <Stars rating={r.rating} size={11} />
-                    <span className="text-sm font-medium">{r.name}</span>
-                    <span className="text-xs text-muted-foreground">{r.date}</span>
+                <li key={r.name} className="border border-border p-5 bg-card">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Stars rating={r.rating} size={10} />
+                      <span className="text-xs font-bold tracking-wide">{r.name}</span>
+                    </div>
+                    <span className="text-[10px] tracking-wider text-muted-foreground">{r.date}</span>
                   </div>
-                  <p className="mt-2 text-sm text-muted-foreground">{r.text}</p>
+                  <p className="mt-3 text-xs font-light tracking-wide leading-relaxed text-muted-foreground">{r.text}</p>
                 </li>
               ))}
             </ul>
@@ -302,19 +317,58 @@ function ProductPage() {
         </div>
       </section>
 
+      {/* Similar Products */}
       {similar.length > 0 && (
-        <section aria-label="Similar products" className="mt-12">
-          <div className="flex items-end justify-between">
-            <h2 className="font-display text-xl">Similar Products</h2>
-            <Link to="/c/$slug" params={{ slug: product.category }} className="text-sm font-medium text-primary hover:underline">
-              View all
+        <section aria-label="Similar products" className="mt-20 border-t border-border pt-16">
+          <div className="flex items-end justify-between border-b border-border pb-3">
+            <h2 className="font-display text-2xl sm:text-3xl tracking-wide">You May Also Like</h2>
+            <Link to="/c/$slug" params={{ slug: product.category }} className="text-xs font-bold tracking-widest text-primary uppercase hover:underline">
+              View all curations &rarr;
             </Link>
           </div>
-          <div className="mt-4">
+          <div className="mt-8">
             <ProductGrid products={similar} />
           </div>
         </section>
       )}
+
+      {/* 9. Sticky Purchase Bar */}
+      <div
+        className={`fixed bottom-0 inset-x-0 z-40 border-t border-border bg-background/95 backdrop-blur-md py-3 px-5 transition-all duration-500 transform ${
+          showStickyBar ? "translate-y-0" : "translate-y-full"
+        }`}
+      >
+        <div className="mx-auto max-w-[1400px] flex items-center justify-between gap-4">
+          <div className="min-w-0 hidden sm:block">
+            <span className="block text-[9px] font-bold tracking-wider text-muted-foreground uppercase">{product.categoryLabel}</span>
+            <span className="block text-xs font-semibold text-foreground truncate max-w-xs">{product.name}</span>
+          </div>
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <span className="text-sm font-bold mr-3">{inr(product.price)}</span>
+            <div className="flex gap-2 flex-1 sm:flex-initial">
+              {product.sizes.slice(0, 3).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setSize(s)}
+                  className={`px-3 py-1.5 text-[10px] font-bold border ${
+                    size === s ? "border-primary bg-primary text-primary-foreground" : "border-border"
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={add}
+              className="bg-primary text-primary-foreground px-6 py-2 text-[10px] font-bold tracking-widest uppercase hover:bg-primary/95 transition-all"
+            >
+              ADD TO BAG
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

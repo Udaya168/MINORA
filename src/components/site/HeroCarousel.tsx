@@ -1,134 +1,164 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import heroFestive from "@/assets/hero-festive.jpg";
-import heroNew from "@/assets/hero-new.jpg";
-import heroValue from "@/assets/hero-value.jpg";
+import heroFestive from "@/assets/p-saree.jpg";
+import heroNew from "@/assets/p-dress.jpg";
+import heroValue from "@/assets/p-kurti.jpg";
 
 const slides = [
   {
     image: heroFestive,
-    eyebrow: "Festive Collection",
-    title: "Style That Belongs to You",
+    eyebrow: "NEW SEASON / 2026",
+    title: "STYLE, REIMAGINED.",
     subtitle:
-      "Discover everyday fashion, Indian classics and modern styles at prices you'll love.",
-    cta: { label: "Shop Now", slug: "ethnic-wear" },
-    secondary: { label: "Explore New Arrivals", slug: "new-arrivals" },
-    alt: "Model wearing a burgundy and gold festive Indian outfit",
+      "Contemporary Indian fashion designed for the way you live now. Pure silk blends, intricate embroidery, and clean tailored cuts.",
+    cta: { label: "SHOP THE LOOK", slug: "ethnic-wear" },
+    secondary: { label: "THE COLLECTION", slug: "new-arrivals" },
+    alt: "Model wearing a luxury saree",
+    objectPosition: "center right",
   },
   {
     image: heroNew,
-    eyebrow: "New Arrivals",
-    title: "Fresh Drops, Every Week",
-    subtitle: "Western staples and denim built for Indian summers.",
-    cta: { label: "Shop New In", slug: "new-arrivals" },
-    secondary: { label: "Browse Western Wear", slug: "western-wear" },
-    alt: "Two models wearing modern western casual denim outfits",
+    eyebrow: "THE MODERN CUT",
+    title: "FRESH DROPS.",
+    subtitle: "Premium western staples and breathable cottons built for everyday luxury.",
+    cta: { label: "EXPLORE NEW IN", slug: "new-arrivals" },
+    secondary: { label: "WESTERN EDIT", slug: "western-wear" },
+    alt: "Model wearing casual modern dress",
+    objectPosition: "center",
   },
   {
     image: heroValue,
-    eyebrow: "Under ₹499",
-    title: "Everyday Style, Everyday Prices",
-    subtitle: "Thousands of kurtis, tops and sarees under ₹499.",
-    cta: { label: "Shop Deals", slug: "deals" },
-    secondary: { label: "Explore Kurtis", slug: "kurtis" },
-    alt: "Model wearing a printed cotton kurti",
+    eyebrow: "DAILY ESSENTIALS",
+    title: "UNDER ₹499 COUTURE.",
+    subtitle: "Exquisite daily wear kurtis, tops and airy sarees that don't compromise on design detail.",
+    cta: { label: "BROWSE DEALS", slug: "deals" },
+    secondary: { label: "VIEW ALL KURTIS", slug: "kurtis" },
+    alt: "Model wearing printed kurti",
+    objectPosition: "center",
   },
 ];
 
 export function HeroCarousel() {
   const [index, setIndex] = useState(0);
+  const [zoom, setZoom] = useState(false);
 
   useEffect(() => {
-    const t = setInterval(() => setIndex((i) => (i + 1) % slides.length), 6000);
-    return () => clearInterval(t);
-  }, []);
+    setZoom(false);
+    const timeout = setTimeout(() => setZoom(true), 50);
 
-  const go = (d: number) =>
+    const interval = setInterval(() => {
+      setIndex((i) => (i + 1) % slides.length);
+    }, 6500);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [index]);
+
+  const go = (d: number) => {
     setIndex((i) => (i + d + slides.length) % slides.length);
+  };
 
   return (
     <section
-      aria-label="Featured collections"
-      className="relative overflow-hidden rounded-none sm:rounded-2xl"
+      aria-label="Featured campaign"
+      className="relative overflow-hidden bg-background"
     >
-      <div className="relative aspect-16/11 w-full sm:aspect-21/9">
-        {slides.map((s, i) => (
-          <div
-            key={s.eyebrow}
-            aria-hidden={i !== index}
-            className={`absolute inset-0 transition-opacity duration-700 ${i === index ? "opacity-100" : "pointer-events-none opacity-0"}`}
-          >
-            <img
-              src={s.image}
-              alt={s.alt}
-              width={1600}
-              height={912}
-              {...(i === 0 ? {} : { loading: "lazy" as const })}
-              className="h-full w-full object-cover object-right"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-background via-background/85 to-transparent sm:to-transparent" />
-            <div className="absolute inset-0 flex items-center">
-              <div className="max-w-[min(90%,34rem)] px-5 sm:px-10">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
-                  {s.eyebrow}
-                </p>
-                <h1 className="mt-2 font-display text-2xl leading-tight sm:text-4xl lg:text-5xl">
-                  {s.title}
-                </h1>
-                <p className="mt-2 max-w-md text-xs text-muted-foreground sm:text-base">
-                  {s.subtitle}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-2 sm:mt-6 sm:gap-3">
-                  <Link
-                    to="/c/$slug"
-                    params={{ slug: s.cta.slug }}
-                    className="rounded-md bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                  >
-                    {s.cta.label}
-                  </Link>
-                  <Link
-                    to="/c/$slug"
-                    params={{ slug: s.secondary.slug }}
-                    className="rounded-md border border-primary/30 bg-card/70 px-5 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary-soft"
-                  >
-                    {s.secondary.label}
-                  </Link>
+      <div className="relative aspect-[4/3] w-full md:aspect-[21/9] min-h-[500px] overflow-hidden">
+        {slides.map((s, i) => {
+          const isActive = i === index;
+          return (
+            <div
+              key={s.eyebrow}
+              className={`absolute inset-0 transition-all duration-700 ease-in-out ${
+                isActive
+                  ? "opacity-100 scale-100 z-10 visible pointer-events-auto"
+                  : "opacity-0 scale-102 z-0 invisible pointer-events-none"
+              }`}
+            >
+              <div className="grid grid-cols-1 md:grid-cols-12 h-full w-full">
+                {/* Content Section (Left) */}
+                <div className="md:col-span-5 flex flex-col justify-center bg-background p-6 sm:p-12 md:p-16 lg:p-20 order-2 md:order-1">
+                  <div className="space-y-4">
+                    <span className="text-[10px] font-bold tracking-[0.25em] text-primary uppercase block">
+                      {s.eyebrow}
+                    </span>
+                    <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl leading-[1.1] tracking-wide text-foreground">
+                      {s.title}
+                    </h1>
+                    <p className="text-xs md:text-sm text-muted-foreground/90 tracking-wide leading-relaxed font-light">
+                      {s.subtitle}
+                    </p>
+                    <div className="pt-2 flex flex-wrap gap-3">
+                      <Link
+                        to="/c/$slug"
+                        params={{ slug: s.cta.slug }}
+                        className="border border-primary bg-primary px-6 py-2.5 text-[10px] font-bold tracking-[0.2em] text-primary-foreground hover:bg-transparent hover:text-primary transition-all duration-300"
+                      >
+                        {s.cta.label}
+                      </Link>
+                      <Link
+                        to="/c/$slug"
+                        params={{ slug: s.secondary.slug }}
+                        className="border border-foreground/20 bg-transparent px-6 py-2.5 text-[10px] font-bold tracking-[0.2em] text-foreground hover:border-primary hover:text-primary transition-all duration-300"
+                      >
+                        {s.secondary.label}
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Image Section (Right) */}
+                <div className="md:col-span-7 relative h-[300px] md:h-full overflow-hidden bg-secondary/10 order-1 md:order-2">
+                  <img
+                    src={s.image}
+                    alt={s.alt}
+                    width={1200}
+                    height={900}
+                    className={`h-full w-full object-cover transition-transform duration-[7000ms] ease-out ${
+                      isActive && zoom ? "scale-105" : "scale-100"
+                    }`}
+                    style={{ objectPosition: s.objectPosition || "center right" }}
+                  />
+                  {/* Subtle split boundary transition gradient */}
+                  <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-background to-transparent hidden md:block" />
                 </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      <button
-        type="button"
-        onClick={() => go(-1)}
-        aria-label="Previous slide"
-        className="absolute left-2 top-1/2 hidden h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-card/80 text-foreground shadow-sm hover:bg-card sm:grid"
-      >
-        <ChevronLeft size={18} />
-      </button>
-      <button
-        type="button"
-        onClick={() => go(1)}
-        aria-label="Next slide"
-        className="absolute right-2 top-1/2 hidden h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-card/80 text-foreground shadow-sm hover:bg-card sm:grid"
-      >
-        <ChevronRight size={18} />
-      </button>
-
-      <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">
-        {slides.map((s, i) => (
-          <button
-            key={s.eyebrow}
-            type="button"
-            onClick={() => setIndex(i)}
-            aria-label={`Go to slide ${i + 1}`}
-            aria-current={i === index}
-            className={`h-1.5 rounded-full transition-all duration-300 ${i === index ? "w-6 bg-primary" : "w-1.5 bg-foreground/25"}`}
+      <div className="absolute bottom-6 left-6 md:left-20 z-20 flex items-center gap-6">
+        <div className="font-display text-xs text-foreground/80 tracking-widest">
+          0{index + 1} <span className="mx-1 text-muted-foreground/50">/</span> 0{slides.length}
+        </div>
+        <div className="relative h-[2px] w-24 bg-foreground/10 overflow-hidden">
+          <div
+            className="absolute top-0 left-0 h-full bg-primary transition-all duration-[6500ms] ease-linear"
+            style={{ width: "100%" }}
           />
-        ))}
+        </div>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => go(-1)}
+            aria-label="Previous slide"
+            className="grid h-8 w-8 place-items-center border border-foreground/10 bg-background/60 hover:bg-background transition-colors"
+          >
+            <ChevronLeft size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => go(1)}
+            aria-label="Next slide"
+            className="grid h-8 w-8 place-items-center border border-foreground/10 bg-background/60 hover:bg-background transition-colors"
+          >
+            <ChevronRight size={14} />
+          </button>
+        </div>
       </div>
     </section>
   );

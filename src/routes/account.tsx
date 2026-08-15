@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Package, MapPin, Heart, User, CreditCard, LogOut, ChevronRight } from "lucide-react";
 import { PRODUCTS, getProduct } from "@/data/products";
 import { inr } from "@/lib/format";
@@ -32,7 +32,24 @@ const ORDERS = [
 
 function AccountPage() {
   const [tab, setTab] = useState("orders");
-  const { wishlist } = useStore();
+  const { wishlist, isLoggedIn, openLoginModal, logout } = useStore();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      navigate({ to: "/", replace: true }).then(() => {
+        openLoginModal();
+      });
+    }
+  }, [isLoggedIn, navigate, openLoginModal]);
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center">
+        <span className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-[1200px] px-3 py-5 sm:px-5">
@@ -62,7 +79,14 @@ function AccountPage() {
               <Heart size={16} /> Wishlist
               <span className="ml-auto text-xs">{wishlist.length}</span>
             </Link>
-            <button type="button" className="flex shrink-0 items-center gap-2 rounded-md px-3 py-2.5 text-sm text-muted-foreground hover:bg-secondary lg:w-full">
+            <button
+              type="button"
+              onClick={() => {
+                logout();
+                navigate({ to: "/" });
+              }}
+              className="flex shrink-0 items-center gap-2 rounded-md px-3 py-2.5 text-sm text-muted-foreground hover:bg-secondary lg:w-full"
+            >
               <LogOut size={16} /> Logout
             </button>
           </nav>

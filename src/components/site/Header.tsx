@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Search,
@@ -9,17 +9,25 @@ import {
   Store,
   Menu,
   X,
+  ChevronDown,
+  ArrowRight,
 } from "lucide-react";
-import { NAV_LINKS } from "@/data/products";
+import { NAV_LINKS, CATEGORIES } from "@/data/products";
 import { useStore } from "@/lib/store";
 import { Logo } from "./Logo";
 import { SearchOverlay } from "./SearchOverlay";
 
+const announcements = [
+  "NEW SEASON — NEW STORIES",
+  "FREE EXPRESS SHIPPING ON ORDERS ABOVE ₹499",
+  "7-DAY COMPLIMENTARY HOME PICKS & RETURNS",
+];
+
 function Badge({ count }: { count: number }) {
   if (!count) return null;
   return (
-    <span className="absolute -right-1.5 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
-      {count > 9 ? "9+" : count}
+    <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">
+      {count}
     </span>
   );
 }
@@ -27,9 +35,18 @@ function Badge({ count }: { count: number }) {
 export function Header() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [announcementIdx, setAnnouncementIdx] = useState(0);
+  const [activeMegaMenu, setActiveMegaMenu] = useState<string | null>(null);
   const [q, setQ] = useState("");
-  const { cartCount, wishlist, pushRecent } = useStore();
+  const { cartCount, wishlist, pushRecent, isLoggedIn, openLoginModal } = useStore();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setAnnouncementIdx((prev) => (prev + 1) % announcements.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,87 +57,185 @@ export function Header() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur">
-        <div className="mx-auto max-w-[1400px] px-3 sm:px-5">
-          <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-2.5 lg:gap-6">
-            <div className="flex min-w-0 items-center gap-2">
+      {/* Announcement Strip */}
+      <div className="bg-primary py-1.5 text-center text-[10px] font-medium tracking-[0.18em] text-primary-foreground transition-all duration-500">
+        {announcements[announcementIdx]}
+      </div>
+
+      <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
+        <div className="mx-auto max-w-[1400px] px-4 sm:px-6">
+          <div className="flex h-16 items-center justify-between gap-4 lg:h-20">
+            {/* Left: Hamburger & Logo */}
+            <div className="flex items-center gap-3">
               <button
                 type="button"
-                className="rounded-md p-1.5 hover:bg-secondary lg:hidden"
+                className="rounded-full p-2 hover:bg-secondary lg:hidden"
                 aria-label="Open menu"
                 onClick={() => setMenuOpen(true)}
               >
                 <Menu size={20} />
               </button>
-              <Logo className="h-7 sm:h-8" />
+              <Logo className="h-6 sm:h-7" />
             </div>
 
-            <form onSubmit={submit} className="hidden lg:flex" role="search">
-              <div className="flex w-full items-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 focus-within:border-primary">
-                <Search size={18} className="shrink-0 text-muted-foreground" aria-hidden />
+            {/* Center: Mega search experience */}
+            <form onSubmit={submit} className="hidden max-w-xl flex-1 lg:block" role="search">
+              <div className="group flex w-full items-center gap-2 border-b border-border bg-transparent py-2 transition-colors focus-within:border-primary">
+                <Search size={16} className="shrink-0 text-muted-foreground transition-colors group-focus-within:text-primary" aria-hidden />
                 <input
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   onFocus={() => setSearchOpen(true)}
-                  placeholder="Search for sarees, kurtis, dresses, jewellery..."
+                  placeholder="Search collections, fabrics, styles..."
                   aria-label="Search for products"
-                  className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+                  className="min-w-0 flex-1 bg-transparent text-xs tracking-wider uppercase outline-none placeholder:text-muted-foreground/60"
                 />
               </div>
             </form>
-            <div className="lg:hidden" />
 
-            <nav className="flex items-center gap-1 sm:gap-2" aria-label="Account and cart">
+            {/* Right: Actions */}
+            <nav className="flex items-center gap-1.5 sm:gap-3" aria-label="Account and cart">
               <button
                 type="button"
                 onClick={() => setSearchOpen(true)}
                 aria-label="Search"
-                className="rounded-md p-2 hover:bg-secondary lg:hidden"
+                className="rounded-full p-2 hover:bg-secondary lg:hidden"
               >
                 <Search size={20} />
               </button>
               <button
                 type="button"
-                className="hidden items-center gap-1.5 rounded-md px-2 py-2 text-sm hover:bg-secondary xl:flex"
+                className="hidden items-center gap-1.5 rounded-sm px-2 py-1.5 text-xs tracking-wide hover:bg-secondary xl:flex"
               >
-                <MapPin size={17} />
-                <span className="text-left leading-tight">
-                  <span className="block text-[10px] text-muted-foreground">Deliver to</span>
-                  <span className="block text-xs font-medium">Mumbai 400001</span>
+                <MapPin size={15} className="text-muted-foreground" />
+                <span className="text-left leading-none">
+                  <span className="block text-[9px] text-muted-foreground uppercase">Deliver to</span>
+                  <span className="block text-[11px] font-semibold">Mumbai 400001</span>
                 </span>
               </button>
-              <Link to="/login" className="hidden items-center gap-1.5 rounded-md px-2 py-2 text-sm hover:bg-secondary lg:flex">
-                <User size={18} /> <span className="text-xs font-medium">Login</span>
-              </Link>
-              <Link to="/wishlist" aria-label="Wishlist" className="relative rounded-md p-2 hover:bg-secondary">
+              {isLoggedIn ? (
+                <Link to="/account" className="hidden items-center gap-1 rounded-sm px-2 py-1.5 text-xs font-medium tracking-wide uppercase hover:bg-secondary lg:flex">
+                  <User size={15} /> <span>Account</span>
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => openLoginModal()}
+                  className="hidden items-center gap-1 rounded-sm px-2 py-1.5 text-xs font-medium tracking-wide uppercase hover:bg-secondary lg:flex"
+                >
+                  <User size={15} /> <span>Account</span>
+                </button>
+              )}
+              <Link to="/wishlist" aria-label="Wishlist" className="relative rounded-full p-2 hover:bg-secondary">
                 <Heart size={20} />
                 <Badge count={wishlist.length} />
               </Link>
-              <Link to="/cart" aria-label="Cart" className="relative rounded-md p-2 hover:bg-secondary">
+              <button
+                type="button"
+                onClick={() => {
+                  // Trigger Cart Drawer open event
+                  window.dispatchEvent(new CustomEvent("open-cart-drawer"));
+                }}
+                aria-label="Cart"
+                className="relative rounded-full p-2 hover:bg-secondary"
+              >
                 <ShoppingBag size={20} />
                 <Badge count={cartCount} />
-              </Link>
+              </button>
               <Link
                 to="/sell"
-                className="hidden items-center gap-1.5 rounded-md border border-primary px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary-soft lg:flex"
+                className="hidden items-center gap-1 border border-primary/20 px-3 py-1.5 text-[11px] font-semibold tracking-wider uppercase text-primary transition-all duration-200 hover:bg-primary hover:text-primary-foreground lg:flex"
               >
-                <Store size={15} /> Become a Seller
+                <Store size={13} /> Sell
               </Link>
             </nav>
           </div>
 
-          <nav aria-label="Categories" className="no-scrollbar -mx-3 hidden overflow-x-auto px-3 lg:block">
-            <ul className="flex items-center gap-1 pb-1.5">
+          {/* Desktop Category Nav & Mega Menus */}
+          <nav aria-label="Categories" className="relative hidden border-t border-border lg:block">
+            <ul className="flex items-center justify-center gap-1 py-1">
               {NAV_LINKS.map((c) => (
-                <li key={c.slug}>
+                <li
+                  key={c.slug}
+                  className="static"
+                  onMouseEnter={() => setActiveMegaMenu(c.slug)}
+                  onMouseLeave={() => setActiveMegaMenu(null)}
+                >
                   <Link
                     to="/c/$slug"
                     params={{ slug: c.slug }}
-                    className="block whitespace-nowrap rounded-md px-3 py-1.5 text-[13px] font-medium text-foreground/80 transition-colors hover:bg-primary-soft hover:text-primary"
-                    activeProps={{ className: "bg-primary-soft text-primary" }}
+                    className="flex items-center gap-1 px-4 py-2.5 text-xs font-semibold tracking-widest uppercase text-foreground/80 transition-colors hover:text-primary"
+                    activeProps={{ className: "text-primary border-b border-primary" }}
                   >
                     {c.label}
+                    {["women", "men", "ethnic-wear", "western-wear"].includes(c.slug) && (
+                      <ChevronDown size={10} className="opacity-60" />
+                    )}
                   </Link>
+
+                  {/* Mega Menu Dropdown */}
+                  {activeMegaMenu === c.slug && ["women", "men", "ethnic-wear", "western-wear"].includes(c.slug) && (
+                    <div className="absolute left-1/2 -translate-x-1/2 top-full z-50 w-[min(1200px,calc(100vw-48px))] border border-border bg-card p-6 shadow-xl transition-all duration-300 animate-in fade-in slide-in-from-top-1">
+                      <div className="grid grid-cols-3 gap-6">
+                        <div>
+                          <h4 className="text-[10px] font-bold tracking-widest uppercase text-primary border-b border-border pb-1">
+                            Curated Categories
+                          </h4>
+                          <ul className="mt-3 space-y-2">
+                            {CATEGORIES.slice(0, 5).map((cat) => (
+                              <li key={cat.slug}>
+                                <Link
+                                  to="/c/$slug"
+                                  params={{ slug: cat.slug }}
+                                  className="text-xs text-muted-foreground hover:text-primary hover:pl-1 transition-all"
+                                >
+                                  {cat.label}
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div>
+                          <h4 className="text-[10px] font-bold tracking-widest uppercase text-primary border-b border-border pb-1">
+                            Trending Now
+                          </h4>
+                          <ul className="mt-3 space-y-2">
+                            <li>
+                              <Link to="/c/$slug" params={{ slug: "new-arrivals" }} className="text-xs text-muted-foreground hover:text-primary">
+                                Just In: New arrivals
+                              </Link>
+                            </li>
+                            <li>
+                              <Link to="/c/$slug" params={{ slug: "deals" }} className="text-xs text-muted-foreground hover:text-primary">
+                                Seasonal Markdowns
+                              </Link>
+                            </li>
+                            <li>
+                              <Link to="/c/$slug" params={{ slug: "trending" }} className="text-xs text-muted-foreground hover:text-primary">
+                                The Occasion Edit
+                              </Link>
+                            </li>
+                          </ul>
+                        </div>
+                        <div className="bg-secondary/40 p-4 flex flex-col justify-between">
+                          <div>
+                            <span className="text-[9px] font-semibold tracking-widest uppercase text-muted-foreground">Campaign</span>
+                            <h5 className="mt-1 font-display text-sm font-semibold">The Editorial Edit</h5>
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              Hand-selected styles that define the current season.
+                            </p>
+                          </div>
+                          <Link
+                            to="/c/$slug"
+                            params={{ slug: "new-arrivals" }}
+                            className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:gap-2.5 transition-all"
+                          >
+                            Shop The Edit <ArrowRight size={12} />
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -128,33 +243,47 @@ export function Header() {
         </div>
       </header>
 
+      {/* Mobile Drawer menu */}
       {menuOpen && (
         <div className="fixed inset-0 z-100 lg:hidden">
-          <button type="button" aria-label="Close menu" className="absolute inset-0 bg-foreground/40" onClick={() => setMenuOpen(false)} />
-          <div className="animate-slide-in-right absolute inset-y-0 left-0 w-72 overflow-y-auto bg-card p-4">
-            <div className="flex items-center justify-between">
-              <Logo className="h-7" />
-              <button type="button" onClick={() => setMenuOpen(false)} aria-label="Close menu" className="rounded-md p-2 hover:bg-secondary">
+          <button type="button" aria-label="Close menu" className="absolute inset-0 bg-foreground/30 backdrop-blur-sm" onClick={() => setMenuOpen(false)} />
+          <div className="animate-slide-in-right absolute inset-y-0 left-0 w-80 overflow-y-auto bg-card p-5">
+            <div className="flex items-center justify-between border-b border-border pb-4">
+              <Logo className="h-6" />
+              <button type="button" onClick={() => setMenuOpen(false)} aria-label="Close menu" className="rounded-full p-2 hover:bg-secondary">
                 <X size={18} />
               </button>
             </div>
-            <ul className="mt-4 space-y-0.5">
+            <ul className="mt-4 space-y-1.5">
               {NAV_LINKS.map((c) => (
                 <li key={c.slug}>
                   <Link
                     to="/c/$slug"
                     params={{ slug: c.slug }}
                     onClick={() => setMenuOpen(false)}
-                    className="block rounded-md px-3 py-2.5 text-sm hover:bg-secondary"
+                    className="block px-3 py-2 text-xs font-bold tracking-widest uppercase text-foreground/80 hover:bg-secondary"
                   >
                     {c.label}
                   </Link>
                 </li>
               ))}
             </ul>
-            <div className="mt-4 space-y-1 border-t border-border pt-4">
-              <Link to="/account" onClick={() => setMenuOpen(false)} className="block rounded-md px-3 py-2.5 text-sm hover:bg-secondary">My Account</Link>
-              <Link to="/sell" onClick={() => setMenuOpen(false)} className="block rounded-md px-3 py-2.5 text-sm text-primary hover:bg-primary-soft">Become a Seller</Link>
+            <div className="mt-6 space-y-1 border-t border-border pt-6">
+              {isLoggedIn ? (
+                <Link to="/account" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-xs font-bold tracking-widest uppercase text-foreground/80 hover:bg-secondary">My Account</Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    openLoginModal();
+                  }}
+                  className="w-full text-left block px-3 py-2 text-xs font-bold tracking-widest uppercase text-foreground/80 hover:bg-secondary"
+                >
+                  My Account
+                </button>
+              )}
+              <Link to="/sell" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-xs font-bold tracking-widest uppercase text-primary hover:bg-primary-soft">Become a Seller</Link>
             </div>
           </div>
         </div>
