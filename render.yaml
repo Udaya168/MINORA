@@ -3,7 +3,7 @@ services:
     name: minora-storefront
     env: static
     buildCommand: npm run build
-    staticPublishPath: ./dist
+    staticPublishPath: .output/public
     routes:
       - type: rewrite
         source: /*
