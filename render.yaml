@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: minora-storefront
+    env: node
+    buildCommand: npm run build
+    startCommand: node .output/server/index.mjs
