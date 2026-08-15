@@ -1,6 +1,10 @@
 services:
   - type: web
     name: minora-storefront
-    env: node
+    env: static
     buildCommand: npm run build
-    startCommand: node .output/server/index.mjs
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
