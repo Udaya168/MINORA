@@ -11,6 +11,7 @@ import {
   X,
   ChevronDown,
   ArrowRight,
+  ChevronRight,
 } from "lucide-react";
 import { NAV_LINKS, CATEGORIES } from "@/data/products";
 import { useStore } from "@/lib/store";
@@ -48,6 +49,17 @@ export function Header() {
     return () => clearInterval(interval);
   }, []);
 
+  // Lock body scroll when drawer is open
+  useEffect(() => {
+    if (menuOpen) {
+      const originalStyle = window.getComputedStyle(document.body).overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalStyle;
+      };
+    }
+  }, [menuOpen]);
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!q.trim()) return;
@@ -58,27 +70,34 @@ export function Header() {
   return (
     <>
       {/* Announcement Strip */}
-      <div className="bg-primary py-1.5 text-center text-[10px] font-medium tracking-[0.18em] text-primary-foreground transition-all duration-500">
+      <div className="bg-primary py-2 px-4 text-center text-[10px] font-medium tracking-[0.18em] text-primary-foreground transition-all duration-500 break-words leading-normal">
         {announcements[announcementIdx]}
       </div>
 
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
-        <div className="mx-auto max-w-[1400px] px-4 sm:px-6">
-          <div className="flex h-16 items-center justify-between gap-4 lg:h-20">
-            {/* Left: Hamburger & Logo */}
+        <div className="mx-auto max-w-[1400px] px-4 sm:px-6 relative">
+          <div className="relative flex h-16 items-center justify-between gap-4 lg:h-20">
+            {/* Left: Hamburger (Mobile) or Logo (Desktop) */}
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                className="rounded-full p-2 hover:bg-secondary lg:hidden"
+                className="rounded-full hover:bg-secondary lg:hidden min-w-[44px] min-h-[44px] flex items-center justify-center"
                 aria-label="Open menu"
                 onClick={() => setMenuOpen(true)}
               >
                 <Menu size={20} />
               </button>
-              <Logo className="h-6 sm:h-7" />
+              <div className="hidden lg:block">
+                <Logo className="h-7" />
+              </div>
             </div>
 
-            {/* Center: Mega search experience */}
+            {/* Center Logo (Mobile ONLY - Absolutely Centered) */}
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 lg:hidden flex items-center justify-center">
+              <Logo className="h-6" />
+            </div>
+
+            {/* Center: Mega search experience (Desktop) */}
             <form onSubmit={submit} className="hidden max-w-xl flex-1 lg:block" role="search">
               <div className="group flex w-full items-center gap-2 border-b border-border bg-transparent py-2 transition-colors focus-within:border-primary">
                 <Search size={16} className="shrink-0 text-muted-foreground transition-colors group-focus-within:text-primary" aria-hidden />
@@ -94,18 +113,18 @@ export function Header() {
             </form>
 
             {/* Right: Actions */}
-            <nav className="flex items-center gap-1.5 sm:gap-3" aria-label="Account and cart">
+            <nav className="flex items-center gap-1 sm:gap-2" aria-label="Account and cart">
               <button
                 type="button"
                 onClick={() => setSearchOpen(true)}
                 aria-label="Search"
-                className="rounded-full p-2 hover:bg-secondary lg:hidden"
+                className="rounded-full hover:bg-secondary lg:hidden min-w-[44px] min-h-[44px] flex items-center justify-center"
               >
                 <Search size={20} />
               </button>
               <button
                 type="button"
-                className="hidden items-center gap-1.5 rounded-sm px-2 py-1.5 text-xs tracking-wide hover:bg-secondary xl:flex"
+                className="hidden items-center gap-1.5 rounded-sm px-2 py-1.5 text-xs tracking-wide hover:bg-secondary xl:flex animate-none"
               >
                 <MapPin size={15} className="text-muted-foreground" />
                 <span className="text-left leading-none">
@@ -126,18 +145,17 @@ export function Header() {
                   <User size={15} /> <span>Account</span>
                 </button>
               )}
-              <Link to="/wishlist" aria-label="Wishlist" className="relative rounded-full p-2 hover:bg-secondary">
+              <Link to="/wishlist" aria-label="Wishlist" className="relative rounded-full hover:bg-secondary min-w-[44px] min-h-[44px] flex items-center justify-center">
                 <Heart size={20} />
                 <Badge count={wishlist.length} />
               </Link>
               <button
                 type="button"
                 onClick={() => {
-                  // Trigger Cart Drawer open event
                   window.dispatchEvent(new CustomEvent("open-cart-drawer"));
                 }}
                 aria-label="Cart"
-                className="relative rounded-full p-2 hover:bg-secondary"
+                className="relative rounded-full hover:bg-secondary min-w-[44px] min-h-[44px] flex items-center justify-center"
               >
                 <ShoppingBag size={20} />
                 <Badge count={cartCount} />
@@ -245,32 +263,60 @@ export function Header() {
 
       {/* Mobile Drawer menu */}
       {menuOpen && (
-        <div className="fixed inset-0 z-100 lg:hidden">
-          <button type="button" aria-label="Close menu" className="absolute inset-0 bg-foreground/30 backdrop-blur-sm" onClick={() => setMenuOpen(false)} />
-          <div className="animate-slide-in-right absolute inset-y-0 left-0 w-80 overflow-y-auto bg-card p-5">
-            <div className="flex items-center justify-between border-b border-border pb-4">
-              <Logo className="h-6" />
-              <button type="button" onClick={() => setMenuOpen(false)} aria-label="Close menu" className="rounded-full p-2 hover:bg-secondary">
-                <X size={18} />
-              </button>
+        <div className="fixed inset-0 z-100 lg:hidden flex">
+          {/* Backdrop */}
+          <button
+            type="button"
+            aria-label="Close menu"
+            className="absolute inset-0 bg-foreground/30 backdrop-blur-sm transition-opacity duration-300"
+            onClick={() => setMenuOpen(false)}
+          />
+          {/* Side Drawer Content */}
+          <div className="relative w-80 max-w-[85vw] h-full overflow-y-auto bg-card p-5 shadow-2xl flex flex-col justify-between animate-in slide-in-from-left duration-300">
+            <div>
+              <div className="flex items-center justify-between border-b border-border pb-4 mb-4">
+                <Logo className="h-6" />
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen(false)}
+                  aria-label="Close menu"
+                  className="rounded-full min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-secondary text-foreground/75 hover:text-foreground transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Touch-Friendly Category Rows */}
+              <nav aria-label="Mobile main navigation">
+                <ul className="divide-y divide-border/60">
+                  {NAV_LINKS.map((c) => (
+                    <li key={c.slug}>
+                      <Link
+                        to="/c/$slug"
+                        params={{ slug: c.slug }}
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center justify-between min-h-[48px] py-3.5 text-xs font-bold tracking-[0.2em] uppercase text-foreground/80 hover:text-primary transition-colors"
+                      >
+                        <span>{c.label}</span>
+                        <ChevronRight size={14} className="text-muted-foreground/60" />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
             </div>
-            <ul className="mt-4 space-y-1.5">
-              {NAV_LINKS.map((c) => (
-                <li key={c.slug}>
-                  <Link
-                    to="/c/$slug"
-                    params={{ slug: c.slug }}
-                    onClick={() => setMenuOpen(false)}
-                    className="block px-3 py-2 text-xs font-bold tracking-widest uppercase text-foreground/80 hover:bg-secondary"
-                  >
-                    {c.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-            <div className="mt-6 space-y-1 border-t border-border pt-6">
+
+            {/* Bottom Panel Actions inside Drawer */}
+            <div className="mt-8 space-y-1 border-t border-border pt-6 pb-6">
               {isLoggedIn ? (
-                <Link to="/account" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-xs font-bold tracking-widest uppercase text-foreground/80 hover:bg-secondary">My Account</Link>
+                <Link
+                  to="/account"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center justify-between min-h-[48px] py-3 text-xs font-bold tracking-[0.2em] uppercase text-foreground/80 hover:text-primary"
+                >
+                  <span>My Account</span>
+                  <ChevronRight size={14} className="text-muted-foreground/60" />
+                </Link>
               ) : (
                 <button
                   type="button"
@@ -278,12 +324,20 @@ export function Header() {
                     setMenuOpen(false);
                     openLoginModal();
                   }}
-                  className="w-full text-left block px-3 py-2 text-xs font-bold tracking-widest uppercase text-foreground/80 hover:bg-secondary"
+                  className="w-full text-left flex items-center justify-between min-h-[48px] py-3 text-xs font-bold tracking-[0.2em] uppercase text-foreground/80 hover:text-primary"
                 >
-                  My Account
+                  <span>My Account</span>
+                  <ChevronRight size={14} className="text-muted-foreground/60" />
                 </button>
               )}
-              <Link to="/sell" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-xs font-bold tracking-widest uppercase text-primary hover:bg-primary-soft">Become a Seller</Link>
+              <Link
+                to="/sell"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center justify-between min-h-[48px] py-3 text-xs font-bold tracking-[0.2em] uppercase text-primary hover:text-primary-soft transition-colors"
+              >
+                <span>Become a Seller</span>
+                <ChevronRight size={14} className="text-primary/60" />
+              </Link>
             </div>
           </div>
         </div>

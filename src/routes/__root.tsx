@@ -145,7 +145,7 @@ function RootComponent() {
       <StoreProvider>
         <div className="flex min-h-screen flex-col">
           <Header />
-          <main className="flex-1 pb-16 lg:pb-0">
+          <main className="flex-1 pb-[calc(80px+env(safe-area-inset-bottom))] lg:pb-0">
             {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
             <Outlet />
           </main>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import heroFestive from "@/assets/p-saree.jpg";
 import heroNew from "@/assets/p-dress.jpg";
 import heroValue from "@/assets/p-kurti.jpg";
@@ -42,6 +43,7 @@ const slides = [
 export function HeroCarousel() {
   const [index, setIndex] = useState(0);
   const [zoom, setZoom] = useState(false);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     setZoom(false);
@@ -60,6 +62,93 @@ export function HeroCarousel() {
   const go = (d: number) => {
     setIndex((i) => (i + d + slides.length) % slides.length);
   };
+
+  if (isMobile) {
+    const s = slides[index];
+    return (
+      <section
+        aria-label="Featured campaign"
+        className="relative overflow-hidden bg-background border-b border-border"
+      >
+        {/* Mobile Image Section */}
+        <div className="w-full aspect-[4/5] overflow-hidden bg-secondary/10 relative">
+          <img
+            src={s.image}
+            alt={s.alt}
+            className="h-full w-full object-cover"
+            style={{ objectPosition: s.objectPosition || "center right" }}
+          />
+        </div>
+
+        {/* Mobile Content Section in Flow */}
+        <div className="p-6 space-y-6 bg-background">
+          <div className="space-y-3">
+            <span className="text-[11px] font-bold tracking-[0.25em] text-primary uppercase block">
+              {s.eyebrow}
+            </span>
+            <h1 className="font-display text-4xl leading-[1.1] tracking-wide text-foreground">
+              {s.title}
+            </h1>
+            <p className="text-xs text-muted-foreground/90 tracking-wide leading-relaxed font-light">
+              {s.subtitle}
+            </p>
+          </div>
+
+          {/* Primary/Secondary CTA Stack */}
+          <div className="flex flex-col gap-2.5">
+            <Link
+              to="/c/$slug"
+              params={{ slug: s.cta.slug }}
+              className="w-full text-center border border-primary bg-primary py-3.5 text-[11px] font-bold tracking-[0.2em] text-primary-foreground hover:bg-transparent hover:text-primary transition-all duration-300"
+            >
+              {s.cta.label}
+            </Link>
+            <Link
+              to="/c/$slug"
+              params={{ slug: s.secondary.slug }}
+              className="w-full text-center border border-foreground/20 bg-transparent py-3.5 text-[11px] font-bold tracking-[0.2em] text-foreground hover:border-primary hover:text-primary transition-all duration-300"
+            >
+              {s.secondary.label}
+            </Link>
+          </div>
+
+          {/* Controls section in Flow */}
+          <div className="pt-4 flex items-center justify-between border-t border-border/40">
+            <div className="flex items-center gap-4">
+              <div className="font-display text-xs text-foreground/80 tracking-widest">
+                0{index + 1} <span className="mx-1 text-muted-foreground/50">/</span> 0{slides.length}
+              </div>
+              <div className="relative h-[2px] w-20 bg-foreground/10 overflow-hidden">
+                <div
+                  key={index}
+                  className="absolute top-0 left-0 h-full bg-primary transition-all duration-[6500ms] ease-linear"
+                  style={{ width: "100%" }}
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => go(-1)}
+                aria-label="Previous slide"
+                className="grid h-11 w-11 place-items-center border border-foreground/10 bg-background hover:bg-secondary transition-colors"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => go(1)}
+                aria-label="Next slide"
+                className="grid h-11 w-11 place-items-center border border-foreground/10 bg-background hover:bg-secondary transition-colors"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section

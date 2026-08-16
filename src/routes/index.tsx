@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Truck, ShieldCheck, RefreshCcw, BadgeIndianRupee } from "lucide-react";
 import { HeroCarousel } from "@/components/site/HeroCarousel";
 import { ProductGrid } from "@/components/site/ProductGrid";
+import { ProductCarousel } from "@/components/site/ProductCarousel";
 import { CATEGORIES, CATEGORY_IMAGES, PRODUCTS } from "@/data/products";
 
 export const Route = createFileRoute("/")({
@@ -45,9 +47,16 @@ const occasions = [
   { title: "Festive Glamour", slug: "sarees", label: "Timeless traditional heritage weaves." },
 ];
 
+const reviews = [
+  { text: "Absolutely stunning saree. The weight, the drape, and the weave quality are exceptional. Feels incredibly premium.", author: "Sunita M., Bangalore", rating: 5 },
+  { text: "My go-to store for modern kurtas. The breathable cotton fabric is perfect for office wear. Fits true to size.", author: "Rashmi K., Delhi", rating: 5 },
+  { text: "The western dresses are so chic! High-end design details at a fraction of standard designer prices. Delivery was very fast.", author: "Aishwarya P., Mumbai", rating: 5 },
+];
+
 function Index() {
   const trending = PRODUCTS.filter((p) => p.tags.includes("trending")).slice(0, 10);
   const newIn = [...PRODUCTS].sort((a, b) => a.createdDaysAgo - b.createdDaysAgo).slice(0, 8);
+  const [activeReview, setActiveReview] = useState(0);
 
   return (
     <div className="mx-auto max-w-[1400px] px-0 sm:px-6">
@@ -152,13 +161,13 @@ function Index() {
           </span>
           <h2 className="font-display text-3xl sm:text-4xl mt-2 tracking-wide">Shop by Price</h2>
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="no-scrollbar -mx-4 flex gap-4 overflow-x-auto px-4 pb-4 sm:mx-0 sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:px-0 sm:pb-0">
           {priceBuckets.map((b) => (
             <Link
               key={b.label}
               to="/c/$slug"
               params={{ slug: b.slug }}
-              className="group relative block overflow-hidden border border-border bg-card"
+              className="group relative block w-[280px] sm:w-full shrink-0 overflow-hidden border border-border bg-card"
             >
               <div className="aspect-[4/5] overflow-hidden">
                 <img
@@ -196,7 +205,7 @@ function Index() {
           </Link>
         </div>
         <div className="mt-8">
-          <ProductGrid products={trending} />
+          <ProductCarousel products={trending} />
         </div>
       </section>
 
@@ -250,7 +259,7 @@ function Index() {
           </Link>
         </div>
         <div className="mt-8">
-          <ProductGrid products={newIn} />
+          <ProductCarousel products={newIn} />
         </div>
       </section>
 
@@ -283,6 +292,63 @@ function Index() {
               </span>
             </Link>
           ))}
+        </div>
+      </section>
+
+      {/* Customer Testimonials Review Carousel Section */}
+      <section aria-label="Customer testimonials" className="my-20 px-4 sm:px-0 bg-secondary/15 py-12 rounded-xl">
+        <div className="text-center max-w-xl mx-auto mb-10">
+          <span className="text-[10px] font-bold tracking-[0.25em] text-primary uppercase block">
+            TESTIMONIALS
+          </span>
+          <h2 className="font-display text-3xl mt-2 tracking-wide">What Our Customers Say</h2>
+        </div>
+
+        {/* Desktop View: Side by Side Cards */}
+        <div className="hidden md:grid grid-cols-3 gap-6 max-w-5xl mx-auto">
+          {reviews.map((r, i) => (
+            <div key={i} className="bg-background p-6 border border-border/80 flex flex-col justify-between text-center space-y-4 shadow-sm">
+              <div className="flex justify-center text-primary text-xs">
+                {"★".repeat(r.rating)}
+              </div>
+              <p className="text-xs text-muted-foreground italic leading-relaxed font-light">"{r.text}"</p>
+              <span className="block text-[10px] font-bold tracking-widest text-foreground uppercase">— {r.author}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Mobile View: Swipeable / Carousel Dots Layout */}
+        <div className="md:hidden max-w-md mx-auto relative px-4">
+          {(() => {
+            const activeReviewObj = reviews[activeReview] ?? reviews[0] ?? { text: "", author: "", rating: 5 };
+            return (
+              <div className="bg-background p-8 border border-border/80 flex flex-col items-center justify-between text-center min-h-[200px] space-y-4 shadow-sm">
+                <div className="flex justify-center text-primary text-xs">
+                  {"★".repeat(activeReviewObj.rating)}
+                </div>
+                <p className="text-xs text-muted-foreground italic leading-relaxed font-light">
+                  "{activeReviewObj.text}"
+                </p>
+                <span className="block text-[10px] font-bold tracking-widest text-foreground uppercase">
+                  — {activeReviewObj.author}
+                </span>
+              </div>
+            );
+          })()}
+          {/* Pagination Indicators (Dots) */}
+          <div className="flex justify-center gap-2 mt-6">
+            {reviews.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setActiveReview(i)}
+                aria-label={`Go to review ${i + 1}`}
+                className={`h-2 w-2 rounded-full transition-all duration-300 ${
+                  activeReview === i ? "bg-primary w-4" : "bg-muted-foreground/30"
+                }`}
+              />
+            ))}
+          </div>
         </div>
       </section>
 

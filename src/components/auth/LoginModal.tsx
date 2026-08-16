@@ -93,20 +93,20 @@ export function LoginModal() {
         ref={modalRef}
         className="relative bg-background border border-border shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-bottom-5 zoom-in-95
                    max-md:fixed max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:max-h-[85vh] max-md:rounded-t-2xl max-md:border-x-0 max-md:border-b-0
-                   md:w-full md:max-w-[440px] md:rounded-xl md:p-8 p-6"
+                   max-md:pb-[calc(2rem+env(safe-area-inset-bottom))] md:w-full md:max-w-[440px] md:rounded-xl md:p-8 p-6"
       >
         {/* Header section with Close Button and Back Button */}
-        <div className="flex items-center justify-between border-b border-border pb-4 mb-6">
+        <div className="flex h-12 items-center justify-between border-b border-border pb-2 mb-6">
           {otpSent ? (
             <button
               type="button"
               onClick={() => setOtpSent(false)}
-              className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground hover:text-foreground transition-colors uppercase"
+              className="flex items-center gap-2 text-xs font-bold tracking-wider text-muted-foreground hover:text-foreground transition-colors uppercase min-w-[44px] min-h-[44px]"
             >
-              <ArrowLeft size={14} /> Back
+              <ArrowLeft size={16} /> Back
             </button>
           ) : (
-            <span className="font-display text-lg tracking-[0.2em] font-bold text-foreground">
+            <span className="font-display text-base tracking-[0.2em] font-bold text-foreground">
               MINORA
             </span>
           )}
@@ -115,15 +115,15 @@ export function LoginModal() {
             type="button"
             onClick={closeLoginModal}
             aria-label="Close modal"
-            className="rounded-full p-1.5 hover:bg-secondary text-foreground/75 hover:text-foreground transition-all"
+            className="rounded-full hover:bg-secondary text-foreground/75 hover:text-foreground transition-all min-w-[44px] min-h-[44px] flex items-center justify-center"
           >
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
 
         {/* Form Body */}
         <div className="text-center space-y-2">
-          <h2 id="modal-title" className="font-display text-2xl tracking-wide text-foreground">
+          <h2 id="modal-title" className="font-display text-xl tracking-wide text-foreground">
             {otpSent ? "Verify your number" : "Login or Sign Up"}
           </h2>
           <p className="text-xs text-muted-foreground leading-relaxed max-w-[280px] mx-auto">

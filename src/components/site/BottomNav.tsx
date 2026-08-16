@@ -19,48 +19,48 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden shadow-[0_-4px_16px_rgba(0,0,0,0.04)]"
     >
-      <ul className="grid grid-cols-5">
+      <ul className="grid grid-cols-5 h-14">
         {items.map((item) => {
           const Icon = item.icon;
           const count = badgeFor(item.label);
           
           if (item.label === "Account" && !isLoggedIn) {
             return (
-              <li key={item.label}>
+              <li key={item.label} className="h-full">
                 <button
                   type="button"
                   onClick={() => openLoginModal()}
-                  className="w-full relative flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium text-muted-foreground hover:text-primary transition-colors"
+                  className="w-full h-full relative flex flex-col items-center justify-center gap-0.5 text-[9px] font-bold tracking-wider text-muted-foreground hover:text-primary transition-colors uppercase"
                 >
                   <span className="relative">
-                    <Icon size={20} />
+                    <Icon size={18} />
                   </span>
-                  {item.label}
+                  <span>{item.label}</span>
                 </button>
               </li>
             );
           }
 
           return (
-            <li key={item.label}>
+            <li key={item.label} className="h-full">
               <Link
                 to={item.to}
                 {...("params" in item ? { params: item.params } : {})}
                 activeOptions={{ exact: item.to === "/" }}
                 activeProps={{ className: "text-primary" }}
-                className="relative flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium text-muted-foreground"
+                className="relative w-full h-full flex flex-col items-center justify-center gap-0.5 text-[9px] font-bold tracking-wider text-muted-foreground uppercase transition-colors"
               >
                 <span className="relative">
-                  <Icon size={20} />
+                  <Icon size={18} />
                   {count > 0 && (
-                    <span className="absolute -right-2 -top-1 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-primary px-1 text-[9px] text-primary-foreground">
+                    <span className="absolute -right-2 -top-1.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-primary px-1 text-[8px] font-bold text-primary-foreground">
                       {count > 9 ? "9+" : count}
                     </span>
                   )}
                 </span>
-                {item.label}
+                <span>{item.label}</span>
               </Link>
             </li>
           );
