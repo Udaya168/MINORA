@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Package, MapPin, Heart, User, CreditCard, LogOut, ChevronRight } from "lucide-react";
 import { PRODUCTS, getProduct } from "@/data/products";
@@ -34,19 +34,28 @@ function AccountPage() {
   const [tab, setTab] = useState("orders");
   const { wishlist, isLoggedIn, openLoginModal, logout } = useStore();
   const navigate = useNavigate();
+  const hasCheckedAuth = useRef(false);
 
   useEffect(() => {
-    if (!isLoggedIn) {
-      navigate({ to: "/", replace: true }).then(() => {
-        openLoginModal();
-      });
+    if (!isLoggedIn && !hasCheckedAuth.current) {
+      hasCheckedAuth.current = true;
+      openLoginModal();
     }
-  }, [isLoggedIn, navigate, openLoginModal]);
+  }, [isLoggedIn, openLoginModal]);
 
   if (!isLoggedIn) {
     return (
-      <div className="min-h-[50vh] flex items-center justify-center">
-        <span className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <div className="mx-auto max-w-md px-4 py-20 text-center flex flex-col items-center justify-center min-h-[60vh]">
+        <h1 className="font-display text-2xl tracking-wide">MY ACCOUNT</h1>
+        <p className="mt-3 text-sm text-muted-foreground max-w-xs">
+          Please sign in to view your orders, saved addresses, and profile details.
+        </p>
+        <button
+          onClick={() => openLoginModal()}
+          className="mt-8 rounded-none bg-primary px-8 py-3.5 text-xs font-bold tracking-widest text-primary-foreground hover:bg-primary/95 transition-all uppercase"
+        >
+          SIGN IN TO PROFILE
+        </button>
       </div>
     );
   }

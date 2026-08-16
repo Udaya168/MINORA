@@ -65,6 +65,7 @@ export function HeroCarousel() {
 
   if (isMobile) {
     const s = slides[index];
+    if (!s) return null;
     return (
       <section
         aria-label="Featured campaign"

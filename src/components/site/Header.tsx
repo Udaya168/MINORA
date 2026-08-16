@@ -33,9 +33,72 @@ function Badge({ count }: { count: number }) {
   );
 }
 
+const SUB_CATEGORIES: Record<string, { label: string; slug: string }[]> = {
+  women: [
+    { label: "Sarees", slug: "sarees" },
+    { label: "Kurtis", slug: "kurtis" },
+    { label: "Dresses", slug: "dresses" },
+    { label: "Tops & Tunics", slug: "tops" },
+    { label: "Lehengas", slug: "lehengas" },
+    { label: "Western Wear", slug: "western-wear" },
+    { label: "New Arrivals", slug: "new-arrivals" },
+  ],
+  men: [
+    { label: "Shirts", slug: "shirts" },
+    { label: "T-Shirts", slug: "tshirts" },
+    { label: "Kurtas", slug: "kurtas" },
+    { label: "Jeans", slug: "jeans" },
+    { label: "Trousers", slug: "trousers" },
+  ],
+  kids: [
+    { label: "Boys Wear", slug: "boys" },
+    { label: "Girls Wear", slug: "girls" },
+    { label: "Ethnic Wear", slug: "kids-ethnic" },
+  ],
+  "ethnic-wear": [
+    { label: "Sarees", slug: "sarees" },
+    { label: "Kurtas & Suits", slug: "kurtas" },
+    { label: "Lehengas", slug: "lehengas" },
+    { label: "Sherwanis", slug: "sherwanis" },
+  ],
+  "western-wear": [
+    { label: "Dresses", slug: "dresses" },
+    { label: "Tops", slug: "tops" },
+    { label: "Jeans", slug: "jeans" },
+    { label: "Trousers", slug: "trousers" },
+  ],
+  footwear: [
+    { label: "Sandals", slug: "sandals" },
+    { label: "Heels", slug: "heels" },
+    { label: "Flats", slug: "flats" },
+    { label: "Juttis", slug: "juttis" },
+  ],
+  jewellery: [
+    { label: "Earrings", slug: "earrings" },
+    { label: "Necklaces", slug: "necklaces" },
+    { label: "Bangles & Bracelets", slug: "bangles" },
+  ],
+  beauty: [
+    { label: "Makeup", slug: "makeup" },
+    { label: "Skincare", slug: "skincare" },
+    { label: "Fragrances", slug: "fragrances" },
+  ],
+  handbags: [
+    { label: "Totes", slug: "totes" },
+    { label: "Slings", slug: "slings" },
+    { label: "Clutches", slug: "clutches" },
+  ],
+  accessories: [
+    { label: "Belts", slug: "belts" },
+    { label: "Sunglasses", slug: "sunglasses" },
+    { label: "Watches", slug: "watches" },
+  ],
+};
+
 export function Header() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
   const [announcementIdx, setAnnouncementIdx] = useState(0);
   const [activeMegaMenu, setActiveMegaMenu] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -51,14 +114,43 @@ export function Header() {
 
   // Lock body scroll when drawer is open
   useEffect(() => {
-    if (menuOpen) {
-      const originalStyle = window.getComputedStyle(document.body).overflow;
-      document.body.style.overflow = "hidden";
-      return () => {
-        document.body.style.overflow = originalStyle;
-      };
-    }
+    if (!menuOpen) return;
+    const originalStyle = window.getComputedStyle(document.body).overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = originalStyle;
+    };
   }, [menuOpen]);
+
+  // Manage browser history and pushState for mobile menu
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    if (window.history.state?.mobileMenuOpen !== true) {
+      window.history.pushState({ mobileMenuOpen: true }, "");
+    }
+
+    const handlePopState = (e: PopStateEvent) => {
+      if (!e.state || !e.state.mobileMenuOpen) {
+        setMenuOpen(false);
+        setActiveSubmenu(null);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [menuOpen]);
+
+  const closeMenuSafe = () => {
+    if (window.history.state?.mobileMenuOpen) {
+      window.history.back();
+    } else {
+      setMenuOpen(false);
+      setActiveSubmenu(null);
+    }
+  };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -264,58 +356,169 @@ export function Header() {
       {/* Mobile Drawer menu */}
       {menuOpen && (
         <div className="fixed inset-0 z-100 lg:hidden flex">
-          {/* Backdrop */}
+          {/* Backdrop overlay */}
           <button
             type="button"
             aria-label="Close menu"
-            className="absolute inset-0 bg-foreground/30 backdrop-blur-sm transition-opacity duration-300"
-            onClick={() => setMenuOpen(false)}
+            className="absolute inset-0 bg-[#140A0C]/45 backdrop-blur-[3px] transition-opacity duration-300"
+            onClick={closeMenuSafe}
           />
           {/* Side Drawer Content */}
-          <div className="relative w-80 max-w-[85vw] h-full overflow-y-auto bg-card p-5 shadow-2xl flex flex-col justify-between animate-in slide-in-from-left duration-300">
+          <div className="relative w-[85vw] max-w-[400px] h-full overflow-y-auto bg-[#FCF9F5] p-6 shadow-2xl flex flex-col justify-between animate-in slide-in-from-left duration-300">
             <div>
-              <div className="flex items-center justify-between border-b border-border pb-4 mb-4">
-                <Logo className="h-6" />
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between border-b border-border/60 pb-4 mb-6">
+                {activeSubmenu ? (
+                  <button
+                    type="button"
+                    onClick={() => setActiveSubmenu(null)}
+                    className="flex items-center gap-1.5 text-[11px] font-bold tracking-widest text-[#766D69] hover:text-[#1C1818] uppercase"
+                  >
+                    <ArrowRight size={14} className="rotate-180" /> Back
+                  </button>
+                ) : (
+                  <span className="font-display text-base tracking-[0.2em] font-bold text-[#1C1818]">
+                    MINORA
+                  </span>
+                )}
                 <button
                   type="button"
-                  onClick={() => setMenuOpen(false)}
+                  onClick={closeMenuSafe}
                   aria-label="Close menu"
-                  className="rounded-full min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-secondary text-foreground/75 hover:text-foreground transition-all"
+                  className="rounded-full min-w-[40px] min-h-[40px] flex items-center justify-center hover:bg-secondary/20 text-[#766D69] hover:text-[#1C1818] transition-all"
                 >
-                  <X size={20} />
+                  <X size={18} />
                 </button>
               </div>
 
-              {/* Touch-Friendly Category Rows */}
+              {/* Multi-level Navigation Panel */}
               <nav aria-label="Mobile main navigation">
-                <ul className="divide-y divide-border/60">
-                  {NAV_LINKS.map((c) => (
-                    <li key={c.slug}>
+                {activeSubmenu ? (
+                  // Submenu View
+                  <div className="space-y-4">
+                    <span className="block text-[10px] font-bold tracking-widest text-[#766D69] uppercase pb-2 border-b border-border/40">
+                      {NAV_LINKS.find(n => n.slug === activeSubmenu)?.label || activeSubmenu}
+                    </span>
+                    <ul className="space-y-1">
+                      <li>
+                        <Link
+                          to="/c/$slug"
+                          params={{ slug: activeSubmenu }}
+                          onClick={() => {
+                            setActiveSubmenu(null);
+                            setMenuOpen(false);
+                          }}
+                          className="flex items-center justify-between min-h-[48px] py-3 text-xs font-bold tracking-[0.1em] uppercase text-[#1C1818] hover:text-primary transition-colors"
+                        >
+                          View All
+                        </Link>
+                      </li>
+                      {(SUB_CATEGORIES[activeSubmenu] || []).map((sub) => (
+                        <li key={sub.slug} className="border-t border-border/20">
+                          <Link
+                            to="/c/$slug"
+                            params={{ slug: sub.slug }}
+                            onClick={() => {
+                              setActiveSubmenu(null);
+                              setMenuOpen(false);
+                            }}
+                            className="flex items-center justify-between min-h-[48px] py-3 text-xs font-medium tracking-[0.1em] uppercase text-[#766D69] hover:text-[#1C1818] transition-colors"
+                          >
+                            {sub.label}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  // Main Top-level View
+                  <ul className="space-y-1">
+                    <li>
                       <Link
-                        to="/c/$slug"
-                        params={{ slug: c.slug }}
+                        to="/"
                         onClick={() => setMenuOpen(false)}
-                        className="flex items-center justify-between min-h-[48px] py-3.5 text-xs font-bold tracking-[0.2em] uppercase text-foreground/80 hover:text-primary transition-colors"
+                        className="flex items-center min-h-[48px] py-3 text-xs font-bold tracking-[0.2em] uppercase text-[#1C1818] hover:text-primary transition-colors"
                       >
-                        <span>{c.label}</span>
-                        <ChevronRight size={14} className="text-muted-foreground/60" />
+                        Home
                       </Link>
                     </li>
-                  ))}
-                </ul>
+                    <li className="pt-2 border-t border-border/40 pb-1">
+                      <span className="block text-[9px] font-bold tracking-widest text-[#766D69] uppercase">
+                        Shop Collections
+                      </span>
+                    </li>
+                    {NAV_LINKS.map((c) => {
+                      const hasSub = SUB_CATEGORIES[c.slug] !== undefined;
+                      return (
+                        <li key={c.slug} className="border-t border-border/20">
+                          {hasSub ? (
+                            <button
+                              type="button"
+                              onClick={() => setActiveSubmenu(c.slug)}
+                              className="w-full flex items-center justify-between min-h-[48px] py-3 text-xs font-medium tracking-[0.15em] uppercase text-[#1C1818] hover:text-[#5A101C] transition-colors"
+                            >
+                              <span>{c.label}</span>
+                              <ChevronRight size={14} className="text-[#766D69]/60" />
+                            </button>
+                          ) : (
+                            <Link
+                              to="/c/$slug"
+                              params={{ slug: c.slug }}
+                              onClick={() => setMenuOpen(false)}
+                              className="flex items-center justify-between min-h-[48px] py-3 text-xs font-medium tracking-[0.15em] uppercase text-[#1C1818] hover:text-[#5A101C] transition-colors"
+                            >
+                              <span>{c.label}</span>
+                            </Link>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </nav>
             </div>
 
             {/* Bottom Panel Actions inside Drawer */}
-            <div className="mt-8 space-y-1 border-t border-border pt-6 pb-6">
+            <div className="mt-8 space-y-2 border-t border-border/60 pt-6">
+              <Link
+                to="/wishlist"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center justify-between min-h-[44px] py-2 text-xs font-semibold tracking-[0.15em] uppercase text-[#1C1818] hover:text-primary"
+              >
+                <span className="flex items-center gap-2.5">
+                  <Heart size={16} /> Wishlist
+                </span>
+                <span className="text-[10px] text-[#766D69] bg-secondary/40 px-2 py-0.5 rounded-full font-medium">
+                  {wishlist.length} items
+                </span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  window.dispatchEvent(new CustomEvent("open-cart-drawer"));
+                }}
+                className="w-full flex items-center justify-between min-h-[44px] py-2 text-xs font-semibold tracking-[0.15em] uppercase text-[#1C1818] hover:text-primary text-left"
+              >
+                <span className="flex items-center gap-2.5">
+                  <ShoppingBag size={16} /> Shopping Bag
+                </span>
+                <span className="text-[10px] text-[#766D69] bg-secondary/40 px-2 py-0.5 rounded-full font-medium">
+                  {cartCount} items
+                </span>
+              </button>
+
               {isLoggedIn ? (
                 <Link
                   to="/account"
                   onClick={() => setMenuOpen(false)}
-                  className="flex items-center justify-between min-h-[48px] py-3 text-xs font-bold tracking-[0.2em] uppercase text-foreground/80 hover:text-primary"
+                  className="flex items-center justify-between min-h-[44px] py-2 text-xs font-semibold tracking-[0.15em] uppercase text-[#1C1818] hover:text-primary"
                 >
-                  <span>My Account</span>
-                  <ChevronRight size={14} className="text-muted-foreground/60" />
+                  <span className="flex items-center gap-2.5">
+                    <User size={16} /> Account Profile
+                  </span>
+                  <ChevronRight size={14} className="text-[#766D69]/60" />
                 </Link>
               ) : (
                 <button
@@ -324,19 +527,22 @@ export function Header() {
                     setMenuOpen(false);
                     openLoginModal();
                   }}
-                  className="w-full text-left flex items-center justify-between min-h-[48px] py-3 text-xs font-bold tracking-[0.2em] uppercase text-foreground/80 hover:text-primary"
+                  className="w-full text-left flex items-center justify-between min-h-[44px] py-2 text-xs font-semibold tracking-[0.15em] uppercase text-[#1C1818] hover:text-primary"
                 >
-                  <span>My Account</span>
-                  <ChevronRight size={14} className="text-muted-foreground/60" />
+                  <span className="flex items-center gap-2.5">
+                    <User size={16} /> Sign In
+                  </span>
+                  <ChevronRight size={14} className="text-[#766D69]/60" />
                 </button>
               )}
+              
               <Link
                 to="/sell"
                 onClick={() => setMenuOpen(false)}
-                className="flex items-center justify-between min-h-[48px] py-3 text-xs font-bold tracking-[0.2em] uppercase text-primary hover:text-primary-soft transition-colors"
+                className="flex items-center justify-between min-h-[44px] py-2 text-xs font-semibold tracking-[0.15em] uppercase text-[#5A101C] hover:text-primary-soft transition-colors"
               >
                 <span>Become a Seller</span>
-                <ChevronRight size={14} className="text-primary/60" />
+                <ChevronRight size={14} className="text-[#5A101C]/60" />
               </Link>
             </div>
           </div>

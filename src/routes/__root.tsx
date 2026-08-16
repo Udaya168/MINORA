@@ -16,7 +16,6 @@ import { StoreProvider } from "@/lib/store";
 import { Header } from "@/components/site/Header";
 import { CartDrawer } from "@/components/site/CartDrawer";
 import { Footer } from "@/components/site/Footer";
-import { BottomNav } from "@/components/site/BottomNav";
 import { BackToTop } from "@/components/site/BackToTop";
 import { Toaster } from "@/components/ui/sonner";
 import { LoginModal } from "@/components/auth/LoginModal";
@@ -145,12 +144,11 @@ function RootComponent() {
       <StoreProvider>
         <div className="flex min-h-screen flex-col">
           <Header />
-          <main className="flex-1 pb-[calc(80px+env(safe-area-inset-bottom))] lg:pb-0">
+          <main className="flex-1 pb-0">
             {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
             <Outlet />
           </main>
           <Footer />
-          <BottomNav />
           <BackToTop />
           <CartDrawer />
           <LoginModal />

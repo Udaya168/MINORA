@@ -17,10 +17,17 @@ function LoginPage() {
   const { openLoginModal } = useStore();
 
   useEffect(() => {
-    // Instantly redirect to homepage and trigger the login modal
-    navigate({ to: "/", replace: true }).then(() => {
-      openLoginModal();
-    });
+    const hasHistory = window.history.state && window.history.length > 1;
+    if (hasHistory) {
+      window.history.back();
+      setTimeout(() => {
+        openLoginModal();
+      }, 150);
+    } else {
+      navigate({ to: "/", replace: true }).then(() => {
+        openLoginModal();
+      });
+    }
   }, [navigate, openLoginModal]);
 
   return (

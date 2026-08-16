@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Check, CreditCard, Smartphone, Landmark, Banknote, Truck } from "lucide-react";
 import { toast } from "sonner";
@@ -33,8 +33,33 @@ function Checkout() {
   const [delivery, setDelivery] = useState("standard");
   const [payment, setPayment] = useState("upi");
   const [orderId, setOrderId] = useState("");
-  const { cart, totals, clearCart } = useStore();
+  const { cart, totals, clearCart, isLoggedIn, openLoginModal } = useStore();
   const navigate = useNavigate();
+  const hasCheckedAuth = useRef(false);
+
+  useEffect(() => {
+    if (!isLoggedIn && !hasCheckedAuth.current) {
+      hasCheckedAuth.current = true;
+      openLoginModal();
+    }
+  }, [isLoggedIn, openLoginModal]);
+
+  if (!isLoggedIn) {
+    return (
+      <div className="mx-auto max-w-md px-4 py-20 text-center flex flex-col items-center justify-center min-h-[60vh]">
+        <h1 className="font-display text-2xl tracking-wide">SECURE CHECKOUT</h1>
+        <p className="mt-3 text-sm text-muted-foreground max-w-xs">
+          Please sign in to your MINORA account to complete your purchase.
+        </p>
+        <button
+          onClick={() => openLoginModal()}
+          className="mt-8 rounded-none bg-primary px-8 py-3.5 text-xs font-bold tracking-widest text-primary-foreground hover:bg-primary/95 transition-all uppercase"
+        >
+          SIGN IN TO CONTINUE
+        </button>
+      </div>
+    );
+  }
 
   const [address, setAddress] = useState({
     name: "",
