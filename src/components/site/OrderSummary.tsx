@@ -11,7 +11,7 @@ export function OrderSummary({
   to?: "/checkout" | undefined;
   onCta?: (() => void) | undefined;
 }) {
-  const { totals, isLoggedIn, openLoginModal } = useStore();
+  const { totals } = useStore();
   const navigate = useNavigate();
 
   const rows = [
@@ -47,15 +47,7 @@ export function OrderSummary({
       {to ? (
         <button
           type="button"
-          onClick={() => {
-            if (!isLoggedIn) {
-              openLoginModal(() => {
-                navigate({ to: "/checkout" });
-              });
-            } else {
-              navigate({ to: "/checkout" });
-            }
-          }}
+          onClick={() => navigate({ to: "/checkout" })}
           className="mt-4 w-full rounded-md bg-primary py-3 text-center text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
         >
           {cta}

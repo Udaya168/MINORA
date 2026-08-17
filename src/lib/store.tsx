@@ -4,12 +4,24 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { PRODUCTS, type Product } from "@/data/products";
 
+import type { Session, User } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
+
 export type CartLine = { id: string; size: string; qty: number };
+
+export type Profile = {
+  id: string;
+  full_name: string | null;
+  role: string | null;
+  email?: string | null;
+  [key: string]: any;
+};
 
 type StoreValue = {
   cart: CartLine[];
@@ -26,16 +38,18 @@ type StoreValue = {
   pushRecent: (term: string) => void;
   cartCount: number;
   totals: { items: number; mrp: number; discount: number; delivery: number; total: number };
-  isLoggedIn: boolean;
-  user: { mobile: string } | null;
-  authModalOpen: boolean;
-  openLoginModal: (onSuccess?: () => void) => void;
-  closeLoginModal: () => void;
-  login: (mobile: string) => void;
-  logout: () => void;
   legalModalType: "terms" | "privacy" | "refund" | null;
   openLegalModal: (type: "terms" | "privacy" | "refund") => void;
   closeLegalModal: () => void;
+  session: Session | null;
+  user: User | null;
+  profile: Profile | null;
+  fullName: string | null;
+  role: string | null;
+  isLoggedIn: boolean;
+  loadingAuth: boolean;
+  logout: () => Promise<void>;
+  fetchProfile: (userId: string) => Promise<Profile | null>;
 };
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -140,46 +154,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, [cart]);
 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [user, setUser] = useState<{ mobile: string } | null>(null);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [onSuccessCallback, setOnSuccessCallback] = useState<(() => void) | null>(null);
-
-  useEffect(() => {
-    setIsLoggedIn(localStorage.getItem("minora.isLoggedIn") === "true");
-    setUser(read<{ mobile: string } | null>("minora.user", null));
-  }, []);
-
-  const openLoginModal = useCallback((onSuccess?: () => void) => {
-    setOnSuccessCallback(() => onSuccess || null);
-    setAuthModalOpen(true);
-  }, []);
-
-  const closeLoginModal = useCallback(() => {
-    setAuthModalOpen(false);
-    setOnSuccessCallback(null);
-  }, []);
-
-  const login = useCallback((mobile: string) => {
-    setIsLoggedIn(true);
-    const userData = { mobile };
-    setUser(userData);
-    localStorage.setItem("minora.isLoggedIn", "true");
-    localStorage.setItem("minora.user", JSON.stringify(userData));
-    setAuthModalOpen(false);
-    if (onSuccessCallback) {
-      onSuccessCallback();
-      setOnSuccessCallback(null);
-    }
-  }, [onSuccessCallback]);
-
-  const logout = useCallback(() => {
-    setIsLoggedIn(false);
-    setUser(null);
-    localStorage.removeItem("minora.isLoggedIn");
-    localStorage.removeItem("minora.user");
-  }, []);
-
   const [legalModalType, setLegalModalType] = useState<"terms" | "privacy" | "refund" | null>(null);
 
   const openLegalModal = useCallback((type: "terms" | "privacy" | "refund") => {
@@ -189,6 +163,97 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const closeLegalModal = useCallback(() => {
     setLegalModalType(null);
   }, []);
+
+  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+  const fetchedUserIdRef = useRef<string | null>(null);
+
+  const fetchProfile = useCallback(async (userId: string) => {
+    if (!userId) return null;
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (error) {
+        console.error("[Auth] Profiles query notice:", error.message);
+        return null;
+      }
+      if (data) {
+        console.log("[Auth] Profile loaded:", data.id, "Role:", data.role);
+        setProfile(data);
+        return data;
+      }
+    } catch (e) {
+      console.error("[Auth] Profiles fetch exception:", e);
+    }
+    return null;
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      if (!isMounted) return;
+
+      setSession((prevSession) => {
+        if (
+          prevSession?.access_token === currentSession?.access_token &&
+          prevSession?.user?.id === currentSession?.user?.id
+        ) {
+          return prevSession;
+        }
+        return currentSession;
+      });
+
+      setUser((prevUser) => {
+        if (prevUser?.id === currentSession?.user?.id) {
+          return prevUser;
+        }
+        return currentSession?.user ?? null;
+      });
+
+      if (currentSession?.user?.id) {
+        if (fetchedUserIdRef.current !== currentSession.user.id) {
+          fetchedUserIdRef.current = currentSession.user.id;
+          fetchProfile(currentSession.user.id);
+        }
+      } else {
+        if (fetchedUserIdRef.current !== null) {
+          fetchedUserIdRef.current = null;
+          setProfile(null);
+        }
+      }
+      setLoadingAuth(false);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error("Logout error:", e);
+    }
+    fetchedUserIdRef.current = null;
+    setSession(null);
+    setUser(null);
+    setProfile(null);
+  }, []);
+
+  const fullName = profile?.full_name || (user?.user_metadata ? (user.user_metadata["full_name"] as string) : null);
+  const role = profile?.role || null;
+  const isLoggedIn = !!session?.user;
 
   const value: StoreValue = {
     cart,
@@ -205,16 +270,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     pushRecent,
     cartCount: cart.reduce((n, l) => n + l.qty, 0),
     totals,
-    isLoggedIn,
-    user,
-    authModalOpen,
-    openLoginModal,
-    closeLoginModal,
-    login,
-    logout,
     legalModalType,
     openLegalModal,
     closeLegalModal,
+    session,
+    user,
+    profile,
+    fullName,
+    role,
+    isLoggedIn,
+    loadingAuth,
+    logout,
+    fetchProfile,
   };
 
   return (

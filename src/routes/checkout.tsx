@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { getProduct } from "@/data/products";
 import { inr } from "@/lib/format";
 import { useStore } from "@/lib/store";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({
@@ -33,33 +34,8 @@ function Checkout() {
   const [delivery, setDelivery] = useState("standard");
   const [payment, setPayment] = useState("upi");
   const [orderId, setOrderId] = useState("");
-  const { cart, totals, clearCart, isLoggedIn, openLoginModal } = useStore();
+  const { cart, totals, clearCart } = useStore();
   const navigate = useNavigate();
-  const hasCheckedAuth = useRef(false);
-
-  useEffect(() => {
-    if (!isLoggedIn && !hasCheckedAuth.current) {
-      hasCheckedAuth.current = true;
-      openLoginModal();
-    }
-  }, [isLoggedIn, openLoginModal]);
-
-  if (!isLoggedIn) {
-    return (
-      <div className="mx-auto max-w-md px-4 py-20 text-center flex flex-col items-center justify-center min-h-[60vh]">
-        <h1 className="font-display text-2xl tracking-wide">SECURE CHECKOUT</h1>
-        <p className="mt-3 text-sm text-muted-foreground max-w-xs">
-          Please sign in to your MINORA account to complete your purchase.
-        </p>
-        <button
-          onClick={() => openLoginModal()}
-          className="mt-8 rounded-none bg-primary px-8 py-3.5 text-xs font-bold tracking-widest text-primary-foreground hover:bg-primary/95 transition-all uppercase"
-        >
-          SIGN IN TO CONTINUE
-        </button>
-      </div>
-    );
-  }
 
   const [address, setAddress] = useState({
     name: "",
@@ -95,12 +71,206 @@ function Checkout() {
     );
   }
 
-  const placeOrder = () => {
-    const id = "MIN" + Math.floor(100000 + Math.random() * 899999);
-    setOrderId(id);
-    clearCart();
-    setStep(3);
-    toast.success("Order placed successfully");
+  const placeOrder = async () => {
+    try {
+      // 1. Get current Supabase session
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      const currentUserId = currentSession?.user?.id;
+
+      if (!currentUserId || !currentSession?.user) {
+        toast.error("Please sign in to place your order.");
+        return;
+      }
+
+      // 2. Fetch profile from public.profiles
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", currentUserId)
+        .maybeSingle();
+
+      const customerName = profileData?.full_name || address.name || "Customer";
+
+      // 3. Validate checkout inputs
+      if (!address.name || !address.mobile || !address.house || !address.city || !address.state || !address.pincode) {
+        toast.error("Please complete all shipping address fields.");
+        return;
+      }
+
+      if (cart.length === 0) {
+        toast.error("Your bag is empty.");
+        return;
+      }
+
+      // 4. Fetch corresponding products from public.products
+      const productIds = Array.from(new Set(cart.map((c) => c.id)));
+      const { data: dbProducts } = await supabase
+        .from("products")
+        .select("id, name, price, colors")
+        .in("id", productIds);
+
+      const dbProdMap = new Map<string, any>();
+      if (dbProducts) {
+        dbProducts.forEach((p: any) => dbProdMap.set(p.id, p));
+      }
+
+      // 5. Fetch inventory variants from public.inventory
+      const { data: invVariants } = await supabase
+        .from("inventory")
+        .select("id, product_id, size, color, quantity")
+        .in("product_id", productIds);
+
+      // 6. Verify stock for each cart item
+      for (const line of cart) {
+        const dbP = dbProdMap.get(line.id) || getProduct(line.id);
+        const lineItemColor = (line as any).color || (dbP?.colors ? dbP.colors[0] : "Standard");
+        const matchingInv = invVariants?.find(
+          (v: any) =>
+            v.product_id === line.id &&
+            v.size.toLowerCase() === (line.size || "M").toLowerCase() &&
+            (!lineItemColor || v.color.toLowerCase() === lineItemColor.toLowerCase())
+        );
+
+        if (matchingInv) {
+          const availQty = Math.max(0, Number(matchingInv.quantity) || 0);
+          if (line.qty > availQty) {
+            toast.error(`Only ${availQty} items are available.`);
+            return;
+          }
+        }
+      }
+
+      // Prepare items payload with prices from public.products / catalog
+      const itemsPayload = cart.map((line) => {
+        const dbP = dbProdMap.get(line.id) || getProduct(line.id);
+        const unitPrice = dbP ? Number(dbP.price) || 0 : 0;
+        const prodName = dbP ? dbP.name : `Product ${line.id}`;
+        const lineItemColor = (line as any).color || (dbP?.colors ? dbP.colors[0] : "Standard");
+        return {
+          product_id: line.id,
+          product_name: prodName,
+          size: line.size || "M",
+          color: lineItemColor,
+          quantity: line.qty,
+          unit_price: unitPrice,
+          total_price: unitPrice * line.qty,
+        };
+      });
+
+      const fullShippingAddress = `${address.house} ${address.street}`.trim();
+
+      // 7. Try RPC for atomic row-locking execution
+      try {
+        const { data: rpcRes, error: rpcErr } = await supabase.rpc("create_order_and_deduct_inventory", {
+          p_user_id: currentUserId,
+          p_customer_name: customerName,
+          p_customer_email: currentSession.user.email || "",
+          p_phone: address.mobile,
+          p_shipping_address: fullShippingAddress,
+          p_city: address.city,
+          p_state: address.state,
+          p_pincode: address.pincode,
+          p_subtotal: totals.mrp,
+          p_discount: totals.discount,
+          p_shipping: totals.delivery,
+          p_total: totals.total,
+          p_items: itemsPayload,
+        });
+
+        if (!rpcErr && rpcRes) {
+          if (rpcRes.success === false) {
+            toast.error(rpcRes.message || "Order placement failed.");
+            return;
+          }
+          if (rpcRes.order_id) {
+            setOrderId(rpcRes.order_id);
+            clearCart();
+            setStep(3);
+            toast.success("Order placed successfully!");
+            return;
+          }
+        }
+      } catch (e: any) {
+        console.warn("[Checkout] RPC notice, using direct DB fallback:", e.message);
+      }
+
+      // 8. Direct DB Insertion Fallback
+      const { data: newOrder, error: orderErr } = await supabase
+        .from("orders")
+        .insert([
+          {
+            user_id: currentUserId,
+            customer_name: customerName,
+            customer_email: currentSession.user.email || "",
+            phone: address.mobile,
+            shipping_address: fullShippingAddress,
+            city: address.city,
+            state: address.state,
+            pincode: address.pincode,
+            subtotal: totals.mrp,
+            discount: totals.discount,
+            shipping: totals.delivery,
+            total: totals.total,
+            status: "pending",
+            payment_status: "pending",
+          },
+        ])
+        .select("*")
+        .single();
+
+      if (orderErr) {
+        console.error("[Checkout] Orders insertion error:", orderErr);
+        toast.error(orderErr.message || "Could not create order.");
+        return;
+      }
+
+      // Insert Order Items and deduct inventory stock
+      for (const item of itemsPayload) {
+        const { error: itemErr } = await supabase.from("order_items").insert([
+          {
+            order_id: newOrder.id,
+            product_id: item.product_id,
+            product_name: item.product_name,
+            size: item.size,
+            color: item.color,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            total_price: item.total_price,
+          },
+        ]);
+
+        if (itemErr) {
+          console.error("[Checkout] Order items insertion error:", itemErr);
+        }
+
+        const { data: curVariant } = await supabase
+          .from("inventory")
+          .select("id, quantity")
+          .eq("product_id", item.product_id)
+          .eq("size", item.size)
+          .maybeSingle();
+
+        if (curVariant) {
+          const newQty = Math.max(0, Number(curVariant.quantity || 0) - item.quantity);
+          const { error: invUpdateErr } = await supabase
+            .from("inventory")
+            .update({ quantity: newQty, updated_at: new Date().toISOString() })
+            .eq("id", curVariant.id);
+
+          if (invUpdateErr) {
+            console.error("[Checkout] Inventory deduction error:", invUpdateErr);
+          }
+        }
+      }
+
+      setOrderId(newOrder.id);
+      clearCart();
+      setStep(3);
+      toast.success("Order placed successfully!");
+    } catch (e: any) {
+      console.error("[Checkout] Execution error:", e);
+      toast.error(e.message || "An error occurred during checkout.");
+    }
   };
 
   return (
@@ -200,24 +370,25 @@ function Checkout() {
           )}
 
           {step === 3 && (
-            <div className="py-6 text-center">
-              <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-success/10 text-success">
+            <div className="py-6 text-center space-y-3">
+              <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-emerald-500/10 text-emerald-500">
                 <Check size={26} />
               </span>
-              <h2 className="mt-4 font-display text-2xl">Order Confirmed</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Thank you{address.name ? `, ${address.name.split(" ")[0]}` : ""}! Your order{" "}
-                <span className="font-medium text-foreground">{orderId}</span> is being packed.
+              <h2 className="font-display text-2xl font-bold">Order Placed Successfully!</h2>
+              <p className="text-sm text-muted-foreground">
+                Thank you{address.name ? `, ${address.name.split(" ")[0]}` : ""}! Order ID:{" "}
+                <span className="font-bold text-foreground font-mono">{orderId}</span>
               </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Expected delivery by{" "}
-                {new Date(Date.now() + 4 * 864e5).toLocaleDateString("en-IN", { day: "numeric", month: "long" })}
+              <p className="text-xs text-muted-foreground">
+                Order Status: <span className="font-bold text-amber-500 uppercase">Pending Confirmation</span>
               </p>
-              <div className="mt-6 flex flex-wrap justify-center gap-3">
-                <button type="button" onClick={() => navigate({ to: "/account" })} className="rounded-md bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground">
-                  Track Order
-                </button>
-                <Link to="/" className="rounded-md border border-border px-6 py-3 text-sm font-medium">Continue Shopping</Link>
+              <div className="pt-4 flex flex-wrap justify-center gap-3">
+                <Link to="/account" search={{ tab: "orders" }} className="rounded-xl bg-primary px-7 py-3 text-xs font-bold uppercase tracking-wider text-primary-foreground hover:bg-primary/95 transition-all shadow-sm">
+                  View My Orders
+                </Link>
+                <Link to="/" className="rounded-xl border border-border px-7 py-3 text-xs font-bold uppercase tracking-wider hover:bg-secondary transition-all">
+                  Continue Shopping
+                </Link>
               </div>
             </div>
           )}

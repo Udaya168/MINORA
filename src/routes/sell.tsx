@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { ChevronDown, Plus, Minus, ArrowRight, ShieldCheck, Truck, BarChart3, Clock, CheckCircle2, ChevronRight } from "lucide-react";
-import { useStore } from "@/lib/store";
+import { toast } from "sonner";
 import sellerHeroImg from "@/assets/p-coord.jpg";
 
 export const Route = createFileRoute("/sell")({
@@ -95,8 +95,11 @@ const FAQS = [
 ];
 
 function SellPage() {
-  const { openLoginModal } = useStore();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+
+  const handleSellerAction = () => {
+    toast.success("Thank you for your interest! Our seller onboarding team will contact you shortly.");
+  };
 
   return (
     <div className="bg-background min-h-screen">
@@ -118,14 +121,14 @@ function SellPage() {
             <div className="pt-4 flex flex-wrap gap-4">
               <button
                 type="button"
-                onClick={() => openLoginModal()}
+                onClick={handleSellerAction}
                 className="border border-primary bg-primary px-8 py-3.5 text-xs font-bold tracking-widest text-primary-foreground hover:bg-transparent hover:text-primary transition-all duration-300 uppercase"
               >
                 START SELLING
               </button>
               <button
                 type="button"
-                onClick={() => openLoginModal()}
+                onClick={handleSellerAction}
                 className="border border-foreground/20 bg-background/50 backdrop-blur-sm px-8 py-3.5 text-xs font-bold tracking-widest text-foreground hover:border-primary hover:text-primary transition-all duration-300 uppercase"
               >
                 SELLER LOGIN
@@ -251,7 +254,7 @@ function SellPage() {
             <div className="pt-2">
               <button
                 type="button"
-                onClick={() => openLoginModal()}
+                onClick={handleSellerAction}
                 className="inline-flex items-center gap-2 text-xs font-bold tracking-widest text-primary uppercase hover:underline"
               >
                 REQUEST DEMO ACCOUNT <ArrowRight size={14} />
@@ -405,14 +408,14 @@ function SellPage() {
           <div className="pt-4 flex flex-wrap justify-center gap-4">
             <button
               type="button"
-              onClick={() => openLoginModal()}
+              onClick={handleSellerAction}
               className="inline-block border border-primary-foreground bg-primary-foreground px-8 py-3 text-[11px] font-bold tracking-[0.2em] text-primary hover:bg-transparent hover:text-primary-foreground transition-all duration-300 uppercase"
             >
               START SELLING
             </button>
             <button
               type="button"
-              onClick={() => openLoginModal()}
+              onClick={handleSellerAction}
               className="inline-block border border-primary-foreground/30 bg-transparent px-8 py-3 text-[11px] font-bold tracking-[0.2em] text-primary-foreground hover:border-primary-foreground hover:bg-primary-foreground hover:text-primary transition-all duration-300 uppercase"
             >
               SELLER LOGIN

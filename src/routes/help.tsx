@@ -68,8 +68,7 @@ function HelpPage() {
       </div>
 
       <p className="mt-8 text-sm text-muted-foreground">
-        Looking for order details? Head to{" "}
-        <Link to="/account" className="font-medium text-primary underline-offset-2 hover:underline">My Account</Link>.
+        Have questions about an ongoing order? Reach out to support via chat or phone anytime.
       </p>
     </div>
   );

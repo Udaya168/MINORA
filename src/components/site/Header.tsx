@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Search,
@@ -12,6 +12,9 @@ import {
   ChevronDown,
   ArrowRight,
   ChevronRight,
+  Package,
+  LogOut,
+  ShieldCheck,
 } from "lucide-react";
 import { NAV_LINKS, CATEGORIES } from "@/data/products";
 import { useStore } from "@/lib/store";
@@ -102,8 +105,21 @@ export function Header() {
   const [announcementIdx, setAnnouncementIdx] = useState(0);
   const [activeMegaMenu, setActiveMegaMenu] = useState<string | null>(null);
   const [q, setQ] = useState("");
-  const { cartCount, wishlist, pushRecent, isLoggedIn, openLoginModal } = useStore();
+  const { cartCount, wishlist, pushRecent, user, fullName, role, isLoggedIn, logout } = useStore();
   const navigate = useNavigate();
+
+  const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setAccountDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -152,51 +168,59 @@ export function Header() {
     }
   };
 
-  const submit = (e: React.FormEvent) => {
+  const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!q.trim()) return;
     pushRecent(q);
-    navigate({ to: "/search", search: { q } });
+    navigate({ to: "/search", search: { q: q.trim() } });
+    setSearchOpen(false);
   };
 
   return (
     <>
-      {/* Announcement Strip */}
-      <div className="bg-primary py-2 px-4 text-center text-[10px] font-medium tracking-[0.18em] text-primary-foreground transition-all duration-500 break-words leading-normal">
-        {announcements[announcementIdx]}
+      {/* 1. TOP ANNOUNCEMENT BAR */}
+      <div className="bg-[#1C1818] text-white py-2 text-[11px] font-medium tracking-[0.2em] text-center uppercase border-b border-white/10 transition-all">
+        <div className="mx-auto max-w-[1400px] px-4 flex items-center justify-between">
+          <div className="hidden md:block w-1/4 text-left text-[10px] text-white/60">
+            MINORA ONLINE CONCIERGE
+          </div>
+          <div className="w-full md:w-1/2 text-center animate-fade-in" key={announcementIdx}>
+            {announcements[announcementIdx]}
+          </div>
+          <div className="hidden md:flex w-1/4 justify-end gap-4 text-[10px] text-white/70 tracking-widest">
+            <Link to="/sell" className="hover:text-white transition-colors">BECOME A SELLER</Link>
+            <span>•</span>
+            <Link to="/help" className="hover:text-white transition-colors">HELP</Link>
+          </div>
+        </div>
       </div>
 
-      <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md">
-        <div className="mx-auto max-w-[1400px] px-4 sm:px-6 relative">
-          <div className="relative flex h-16 items-center justify-between gap-4 lg:h-20">
-            {/* Left: Hamburger (Mobile) or Logo (Desktop) */}
+      {/* 2. MAIN HEADER (Sticky Container) */}
+      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-border transition-all">
+        <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 sm:h-20 items-center justify-between gap-4">
+            
+            {/* Left: Mobile Menu Button & Logo */}
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                className="rounded-full hover:bg-secondary lg:hidden min-w-[44px] min-h-[44px] flex items-center justify-center"
-                aria-label="Open menu"
                 onClick={() => setMenuOpen(true)}
+                aria-label="Open Navigation Menu"
+                className="rounded-full p-2 hover:bg-secondary lg:hidden min-w-[44px] min-h-[44px] flex items-center justify-center"
               >
-                <Menu size={20} />
+                <Menu size={22} />
               </button>
-              <div className="hidden lg:block">
-                <Logo className="h-7" />
-              </div>
+              <Logo className="h-6 sm:h-7" />
             </div>
 
-            {/* Center Logo (Mobile ONLY - Absolutely Centered) */}
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 lg:hidden flex items-center justify-center">
-              <Logo className="h-6" />
-            </div>
-
-            {/* Center: Mega search experience (Desktop) */}
-            <form onSubmit={submit} className="hidden max-w-xl flex-1 lg:block" role="search">
-              <div className="group flex w-full items-center gap-2 border-b border-border bg-transparent py-2 transition-colors focus-within:border-primary">
-                <Search size={16} className="shrink-0 text-muted-foreground transition-colors group-focus-within:text-primary" aria-hidden />
+            {/* Middle: Desktop Search Bar (Wide Layout) */}
+            <form onSubmit={handleSearchSubmit} className="hidden lg:flex flex-1 max-w-md mx-8">
+              <div className="relative w-full flex items-center border border-border/80 bg-secondary/30 rounded-full px-4 py-2 focus-within:border-primary focus-within:bg-background transition-all">
+                <Search size={16} className="text-muted-foreground mr-2 shrink-0" />
                 <input
+                  type="text"
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  onFocus={() => setSearchOpen(true)}
                   placeholder="Search collections, fabrics, styles..."
                   aria-label="Search for products"
                   className="min-w-0 flex-1 bg-transparent text-xs tracking-wider uppercase outline-none placeholder:text-muted-foreground/60"
@@ -205,7 +229,7 @@ export function Header() {
             </form>
 
             {/* Right: Actions */}
-            <nav className="flex items-center gap-1 sm:gap-2" aria-label="Account and cart">
+            <nav className="flex items-center gap-1 sm:gap-2" aria-label="Wishlist and cart">
               <button
                 type="button"
                 onClick={() => setSearchOpen(true)}
@@ -224,18 +248,78 @@ export function Header() {
                   <span className="block text-[11px] font-semibold">Mumbai 400001</span>
                 </span>
               </button>
+
+              {/* Desktop Account / Login Area */}
               {isLoggedIn ? (
-                <Link to="/account" className="hidden items-center gap-1 rounded-sm px-2 py-1.5 text-xs font-medium tracking-wide uppercase hover:bg-secondary lg:flex">
-                  <User size={15} /> <span>Account</span>
-                </Link>
+                <div className="relative hidden lg:block" ref={dropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setAccountDropdownOpen(!accountDropdownOpen)}
+                    className="flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-xs font-semibold tracking-wide hover:bg-secondary transition-colors"
+                  >
+                    <User size={15} />
+                    <span className="max-w-[130px] truncate">{fullName || "My Account"}</span>
+                    <ChevronDown size={12} className="text-muted-foreground" />
+                  </button>
+
+                  {accountDropdownOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-48 rounded-lg border border-border bg-card p-1.5 shadow-xl z-50 animate-in fade-in-50 zoom-in-95">
+                      <div className="px-3 py-2 border-b border-border/80 mb-1">
+                        <p className="text-xs font-semibold text-foreground truncate">{fullName}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
+                      </div>
+                      <Link
+                        to="/account"
+                        onClick={() => setAccountDropdownOpen(false)}
+                        className="flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary transition-colors"
+                      >
+                        <User size={14} /> My Account
+                      </Link>
+                      <Link
+                        to="/account"
+                        search={{ tab: "orders" }}
+                        onClick={() => setAccountDropdownOpen(false)}
+                        className="flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary transition-colors"
+                      >
+                        <Package size={14} /> My Orders
+                      </Link>
+                      <Link
+                        to="/wishlist"
+                        onClick={() => setAccountDropdownOpen(false)}
+                        className="flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium text-foreground hover:bg-secondary transition-colors"
+                      >
+                        <Heart size={14} /> Wishlist
+                      </Link>
+                      {(role === "admin" || role === "super_admin") && (
+                        <a
+                          href="/admin"
+                          onClick={() => setAccountDropdownOpen(false)}
+                          className="flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+                        >
+                          <ShieldCheck size={14} /> Admin Portal
+                        </a>
+                      )}
+                      <div className="border-t border-border/80 my-1" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAccountDropdownOpen(false);
+                          logout();
+                        }}
+                        className="w-full flex items-center gap-2 rounded-md px-3 py-2 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors text-left"
+                      >
+                        <LogOut size={14} /> Logout
+                      </button>
+                    </div>
+                  )}
+                </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => openLoginModal()}
-                  className="hidden items-center gap-1 rounded-sm px-2 py-1.5 text-xs font-medium tracking-wide uppercase hover:bg-secondary lg:flex"
+                <Link
+                  to="/login"
+                  className="hidden items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-xs font-semibold tracking-wide uppercase hover:bg-secondary lg:flex transition-colors"
                 >
-                  <User size={15} /> <span>Account</span>
-                </button>
+                  <User size={15} /> <span>Login</span>
+                </Link>
               )}
               <Link to="/wishlist" aria-label="Wishlist" className="relative rounded-full hover:bg-secondary min-w-[44px] min-h-[44px] flex items-center justify-center">
                 <Heart size={20} />
@@ -509,33 +593,64 @@ export function Header() {
                 </span>
               </button>
 
+              {/* Mobile Account / Login Section */}
               {isLoggedIn ? (
+                <div className="rounded-lg border border-border/80 bg-secondary/30 p-3 my-2 space-y-2">
+                  <div className="border-b border-border/60 pb-2">
+                    <p className="text-xs font-bold text-foreground truncate">{fullName}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
+                  </div>
+                  <Link
+                    to="/account"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center justify-between py-1.5 text-xs font-semibold tracking-wider text-foreground hover:text-primary"
+                  >
+                    <span className="flex items-center gap-2"><User size={14} /> My Account</span>
+                    <ChevronRight size={14} className="text-muted-foreground" />
+                  </Link>
+                  <Link
+                    to="/account"
+                    search={{ tab: "orders" }}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center justify-between py-1.5 text-xs font-semibold tracking-wider text-foreground hover:text-primary"
+                  >
+                    <span className="flex items-center gap-2"><Package size={14} /> My Orders</span>
+                    <ChevronRight size={14} className="text-muted-foreground" />
+                  </Link>
+                  {(role === "admin" || role === "super_admin") && (
+                    <a
+                      href="/admin"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center justify-between py-1.5 text-xs font-semibold tracking-wider text-primary hover:underline"
+                    >
+                      <span className="flex items-center gap-2"><ShieldCheck size={14} /> Admin Portal</span>
+                      <ChevronRight size={14} className="text-primary/60" />
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      logout();
+                    }}
+                    className="w-full flex items-center justify-between py-1.5 text-xs font-semibold tracking-wider text-destructive hover:bg-destructive/10 text-left"
+                  >
+                    <span className="flex items-center gap-2"><LogOut size={14} /> Logout</span>
+                  </button>
+                </div>
+              ) : (
                 <Link
-                  to="/account"
+                  to="/login"
                   onClick={() => setMenuOpen(false)}
                   className="flex items-center justify-between min-h-[44px] py-2 text-xs font-semibold tracking-[0.15em] uppercase text-[#1C1818] hover:text-primary"
                 >
                   <span className="flex items-center gap-2.5">
-                    <User size={16} /> Account Profile
+                    <User size={16} /> Login
                   </span>
                   <ChevronRight size={14} className="text-[#766D69]/60" />
                 </Link>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    openLoginModal();
-                  }}
-                  className="w-full text-left flex items-center justify-between min-h-[44px] py-2 text-xs font-semibold tracking-[0.15em] uppercase text-[#1C1818] hover:text-primary"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <User size={16} /> Sign In
-                  </span>
-                  <ChevronRight size={14} className="text-[#766D69]/60" />
-                </button>
               )}
-              
+
               <Link
                 to="/sell"
                 onClick={() => setMenuOpen(false)}

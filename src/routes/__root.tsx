@@ -18,7 +18,6 @@ import { CartDrawer } from "@/components/site/CartDrawer";
 import { Footer } from "@/components/site/Footer";
 import { BackToTop } from "@/components/site/BackToTop";
 import { Toaster } from "@/components/ui/sonner";
-import { LoginModal } from "@/components/auth/LoginModal";
 import { LegalPolicyModal } from "@/components/site/LegalPolicyModal";
 
 function NotFoundComponent() {
@@ -116,31 +115,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
     ],
   }),
-  shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
   errorComponent: ErrorComponent,
 });
-
-function RootShell({ children }: { children: ReactNode }) {
-  return (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  );
-}
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
+      <HeadContent />
       <StoreProvider>
         <div className="flex min-h-screen flex-col">
           <Header />
@@ -151,7 +136,6 @@ function RootComponent() {
           <Footer />
           <BackToTop />
           <CartDrawer />
-          <LoginModal />
           <LegalPolicyModal />
           <Toaster position="bottom-center" />
           <ScrollRestoration />

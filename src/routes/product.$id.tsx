@@ -7,6 +7,9 @@ import {
   RefreshCcw,
   Store,
   ChevronDown,
+  AlertCircle,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Breadcrumb } from "@/components/site/Breadcrumb";
@@ -17,6 +20,7 @@ import { PRODUCTS, getProduct } from "@/data/products";
 import { inr } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/product/$id")({
   loader: ({ params }) => {
@@ -63,14 +67,68 @@ const REVIEWS = [
 
 function ProductPage() {
   const { product } = Route.useLoaderData();
-  const { addToCart, isWished, toggleWishlist, isLoggedIn, openLoginModal } = useStore();
+  const { addToCart, isWished, toggleWishlist, cart } = useStore();
   const navigate = useNavigate();
   const [active, setActive] = useState(0);
   const [size, setSize] = useState<string | null>(null);
+  const [selectedColor, setSelectedColor] = useState<string>(
+    product.colors && product.colors[0] ? product.colors[0] : "Standard"
+  );
+  const [inventoryVariants, setInventoryVariants] = useState<
+    { product_id: string; size: string; color: string; quantity: number }[]
+  >([]);
   const [pincode, setPincode] = useState("");
   const [zoom, setZoom] = useState(false);
   const isMobile = useIsMobile();
   const [mobileActiveIdx, setMobileActiveIdx] = useState(0);
+
+  // Fetch Inventory for current product ID
+  useEffect(() => {
+    let isMounted = true;
+    async function loadInventory() {
+      try {
+        const { data, error } = await supabase
+          .from("inventory")
+          .select("product_id, size, color, quantity")
+          .eq("product_id", product.id);
+
+        if (!error && data && isMounted) {
+          const mapped = data.map((d: any) => ({
+            product_id: d.product_id,
+            size: d.size,
+            color: d.color,
+            quantity: Math.max(0, Number(d.quantity) || 0),
+          }));
+          setInventoryVariants(mapped);
+        }
+      } catch (e) {
+        // Fallback
+      }
+    }
+    loadInventory();
+    return () => {
+      isMounted = false;
+    };
+  }, [product.id]);
+
+  // Determine stock for selected variant
+  const hasInventoryRecords = inventoryVariants.length > 0;
+  const matchingVariant = size
+    ? inventoryVariants.find(
+        (v) =>
+          v.size.toLowerCase() === size.toLowerCase() &&
+          (product.colors.length <= 1 || v.color.toLowerCase() === selectedColor.toLowerCase())
+      )
+    : null;
+
+  const availableStock = hasInventoryRecords
+    ? matchingVariant
+      ? matchingVariant.quantity
+      : 0
+    : 10; // Default fallback if product has no inventory variants in DB yet
+
+  const isOut = hasInventoryRecords && size !== null && availableStock === 0;
+  const isLow = hasInventoryRecords && size !== null && availableStock > 0 && availableStock <= 5;
 
   // For sticky purchase bar detection
   const [showStickyBar, setShowStickyBar] = useState(false);
@@ -101,6 +159,17 @@ function ProductPage() {
 
   const add = () => {
     if (!requireSize()) return;
+    if (isOut) {
+      toast.error("This size and color variant is currently Out of Stock.");
+      return;
+    }
+
+    const currentInCart = cart.find((c) => c.id === product.id && c.size === size)?.qty || 0;
+    if (hasInventoryRecords && currentInCart + 1 > availableStock) {
+      toast.error(`Stock limit reached! Only ${availableStock} available.`);
+      return;
+    }
+
     addToCart(product.id, size!, 1);
     toast.success("Added to Bag", { description: `${product.name} · Size ${size}` });
     window.dispatchEvent(new CustomEvent("open-cart-drawer"));
@@ -108,6 +177,17 @@ function ProductPage() {
 
   const buyNow = () => {
     if (!requireSize()) return;
+    if (isOut) {
+      toast.error("This size and color variant is currently Out of Stock.");
+      return;
+    }
+
+    const currentInCart = cart.find((c) => c.id === product.id && c.size === size)?.qty || 0;
+    if (hasInventoryRecords && currentInCart + 1 > availableStock) {
+      toast.error(`Stock limit reached! Only ${availableStock} available.`);
+      return;
+    }
+
     addToCart(product.id, size!, 1);
     navigate({ to: "/checkout" });
   };
@@ -229,6 +309,47 @@ function ProductPage() {
                 </button>
               ))}
             </div>
+            {/* Stock Availability Badge */}
+            {size && hasInventoryRecords && (
+              <div className="pt-2">
+                {availableStock === 0 ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                    <XCircle size={14} /> Out of Stock
+                  </span>
+                ) : isLow ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                    <AlertCircle size={14} /> Low Stock: Only {availableStock} left!
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                    <CheckCircle2 size={14} /> In Stock ({availableStock} available)
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Colors Selection if product has multiple colors */}
+            {product.colors && product.colors.length > 1 && (
+              <div className="space-y-2 pt-2">
+                <h2 className="text-xs font-bold tracking-widest uppercase">Select Color</h2>
+                <div className="flex flex-wrap gap-2">
+                  {product.colors.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setSelectedColor(c)}
+                      className={`border px-3 py-1.5 text-xs font-semibold tracking-wider transition-all ${
+                        selectedColor === c
+                          ? "border-primary bg-primary text-primary-foreground font-bold"
+                          : "border-border text-foreground hover:border-primary/50"
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <p className="text-[10px] text-muted-foreground tracking-wide pt-1">Colours available: {product.colors.join(", ")}</p>
           </div>
 
@@ -237,27 +358,30 @@ function ProductPage() {
             <button
               type="button"
               onClick={add}
-              className="flex-1 border border-primary bg-transparent text-primary py-3.5 text-xs font-bold tracking-[0.2em] uppercase hover:bg-primary hover:text-primary-foreground transition-all duration-300"
+              disabled={isOut}
+              className={`flex-1 border py-3.5 text-xs font-bold tracking-[0.2em] uppercase transition-all duration-300 ${
+                isOut
+                  ? "border-border bg-secondary/50 text-muted-foreground cursor-not-allowed"
+                  : "border-primary bg-transparent text-primary hover:bg-primary hover:text-primary-foreground"
+              }`}
             >
-              ADD TO BAG
+              {isOut ? "OUT OF STOCK" : "ADD TO BAG"}
             </button>
             <button
               type="button"
               onClick={buyNow}
-              className="flex-1 border border-primary bg-primary text-primary-foreground py-3.5 text-xs font-bold tracking-[0.2em] uppercase hover:bg-primary/95 transition-all duration-300"
+              disabled={isOut}
+              className={`flex-1 border py-3.5 text-xs font-bold tracking-[0.2em] uppercase transition-all duration-300 ${
+                isOut
+                  ? "border-border bg-secondary/50 text-muted-foreground cursor-not-allowed"
+                  : "border-primary bg-primary text-primary-foreground hover:bg-primary/95"
+              }`}
             >
-              BUY NOW
+              {isOut ? "OUT OF STOCK" : "BUY NOW"}
             </button>
             <button
               type="button"
               onClick={() => {
-                if (!isLoggedIn) {
-                  openLoginModal(() => {
-                    toggleWishlist(product.id);
-                    toast.success("Saved to wishlist");
-                  });
-                  return;
-                }
                 toggleWishlist(product.id);
                 toast.success(wished ? "Removed from wishlist" : "Saved to wishlist");
               }}

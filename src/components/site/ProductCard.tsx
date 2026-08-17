@@ -14,7 +14,7 @@ export function ProductCard({
   product: Product;
   onQuickView?: ((p: Product) => void) | undefined;
 }) {
-  const { isWished, toggleWishlist, addToCart, isLoggedIn, openLoginModal } = useStore();
+  const { isWished, toggleWishlist, addToCart } = useStore();
   const wished = isWished(product.id);
   const [hovered, setHovered] = useState(false);
 
@@ -86,13 +86,6 @@ export function ProductCard({
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          if (!isLoggedIn) {
-            openLoginModal(() => {
-              toggleWishlist(product.id);
-              toast.success("Saved to wishlist");
-            });
-            return;
-          }
           toggleWishlist(product.id);
           toast.success(wished ? "Removed from wishlist" : "Saved to wishlist");
         }}
