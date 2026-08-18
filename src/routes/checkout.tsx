@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Check, CreditCard, Smartphone, Landmark, Banknote, Truck } from "lucide-react";
+import { Check, CreditCard, Smartphone, Landmark, Banknote, Truck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { getProduct } from "@/data/products";
 import { inr } from "@/lib/format";
@@ -72,14 +72,21 @@ function Checkout() {
     );
   }
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const placeOrder = async () => {
+    if (isSubmitting) return;
+
     try {
+      setIsSubmitting(true);
+
       // 1. Get current Supabase session
       const { data: { session: currentSession } } = await supabase.auth.getSession();
       const currentUserId = currentSession?.user?.id;
 
       if (!currentUserId || !currentSession?.user) {
         toast.error("Please sign in to place your order.");
+        setIsSubmitting(false);
         return;
       }
 
@@ -95,15 +102,17 @@ function Checkout() {
       // 3. Validate checkout inputs
       if (!address.name || !address.mobile || !address.house || !address.city || !address.state || !address.pincode) {
         toast.error("Please complete all shipping address fields.");
+        setIsSubmitting(false);
         return;
       }
 
       if (cart.length === 0) {
         toast.error("Your bag is empty.");
+        setIsSubmitting(false);
         return;
       }
 
-      // 4. Fetch corresponding products from public.products
+      // 4. Fetch corresponding products from public.products / catalog for exact pricing
       const productIds = Array.from(new Set(cart.map((c) => c.id)));
       const { data: dbProducts } = await supabase
         .from("products")
@@ -115,33 +124,7 @@ function Checkout() {
         dbProducts.forEach((p: any) => dbProdMap.set(p.id, p));
       }
 
-      // 5. Fetch inventory variants from public.inventory
-      const { data: invVariants } = await supabase
-        .from("inventory")
-        .select("id, product_id, size, color, quantity")
-        .in("product_id", productIds);
-
-      // 6. Verify stock for each cart item
-      for (const line of cart) {
-        const dbP = dbProdMap.get(line.id) || getProduct(line.id);
-        const lineItemColor = (line as any).color || (dbP?.colors ? dbP.colors[0] : "Standard");
-        const matchingInv = invVariants?.find(
-          (v: any) =>
-            v.product_id === line.id &&
-            v.size.toLowerCase() === (line.size || "M").toLowerCase() &&
-            (!lineItemColor || v.color.toLowerCase() === lineItemColor.toLowerCase())
-        );
-
-        if (matchingInv) {
-          const availQty = Math.max(0, Number(matchingInv.quantity) || 0);
-          if (line.qty > availQty) {
-            toast.error(`Only ${availQty} items are available.`);
-            return;
-          }
-        }
-      }
-
-      // Prepare items payload with prices from public.products / catalog
+      // Prepare items payload for RPC transaction
       const itemsPayload = cart.map((line) => {
         const dbP = dbProdMap.get(line.id) || getProduct(line.id);
         const unitPrice = dbP ? Number(dbP.price) || 0 : 0;
@@ -160,10 +143,32 @@ function Checkout() {
 
       const fullShippingAddress = `${address.house} ${address.street}`.trim();
 
-      // 7. Try RPC for atomic row-locking execution
-      try {
-        const { data: rpcRes, error: rpcErr } = await supabase.rpc("create_order_and_deduct_inventory", {
-          p_user_id: currentUserId,
+      // 5. Invoke atomic Postgres RPC transaction (create_order_and_deduct_inventory)
+      let rpcRes: any = null;
+      let rpcErr: any = null;
+
+      const primaryCall = await supabase.rpc("create_order_and_deduct_inventory", {
+        p_customer_name: customerName,
+        p_customer_email: currentSession.user.email || "",
+        p_phone: address.mobile,
+        p_shipping_address: fullShippingAddress,
+        p_city: address.city,
+        p_state: address.state,
+        p_pincode: address.pincode,
+        p_subtotal: totals.mrp,
+        p_discount: totals.discount,
+        p_shipping: totals.delivery,
+        p_total: totals.total,
+        p_items: itemsPayload,
+      });
+
+      rpcRes = primaryCall.data;
+      rpcErr = primaryCall.error;
+
+      // Secondary RPC alias fallback if function name was create_order_and_decrement_inventory
+      if (rpcErr && rpcErr.code === "PGRST202") {
+        console.warn("[Checkout] Primary RPC not found, trying secondary RPC alias...");
+        const fallbackCall = await supabase.rpc("create_order_and_decrement_inventory", {
           p_customer_name: customerName,
           p_customer_email: currentSession.user.email || "",
           p_phone: address.mobile,
@@ -177,142 +182,36 @@ function Checkout() {
           p_total: totals.total,
           p_items: itemsPayload,
         });
-
-        if (!rpcErr && rpcRes) {
-          if (rpcRes.success === false) {
-            toast.error(rpcRes.message || "Order placement failed.");
-            return;
-          }
-          if (rpcRes.order_id) {
-            setOrderId(rpcRes.order_id);
-            try {
-              await supabase.from("notifications").insert([
-                {
-                  type: "order",
-                  title: "New Order Received",
-                  message: `Order #${rpcRes.order_id.slice(0, 8)} placed by ${customerName}`,
-                  order_id: rpcRes.order_id,
-                  is_read: false,
-                },
-              ]);
-            } catch (notifErr) {
-              console.warn("Could not insert notification to DB:", notifErr);
-            }
-            clearCart();
-            setStep(3);
-            toast.success("Order placed successfully!");
-            return;
-          }
-        }
-      } catch (e: any) {
-        console.warn("[Checkout] RPC notice, using direct DB fallback:", e.message);
+        rpcRes = fallbackCall.data;
+        rpcErr = fallbackCall.error;
       }
 
-      // 8. Direct DB Insertion Fallback
-      const { data: newOrder, error: orderErr } = await supabase
-        .from("orders")
-        .insert([
-          {
-            user_id: currentUserId,
-            customer_name: customerName,
-            customer_email: currentSession.user.email || "",
-            phone: address.mobile,
-            shipping_address: fullShippingAddress,
-            city: address.city,
-            state: address.state,
-            pincode: address.pincode,
-            subtotal: totals.mrp,
-            discount: totals.discount,
-            shipping: totals.delivery,
-            total: totals.total,
-            status: "pending",
-            payment_status: "pending",
-          },
-        ])
-        .select("*")
-        .single();
-
-      if (orderErr) {
-        console.error("[Checkout] Orders insertion error:", orderErr);
-        toast.error(orderErr.message || "Could not create order.");
-        return;
+      // Handle RPC execution errors or transaction failure
+      if (rpcErr) {
+        console.error("[Checkout] Atomic order creation RPC error:", rpcErr);
+        toast.error(rpcErr.message || "Failed to place order. Transaction rolled back.");
+        setIsSubmitting(false);
+        return; // DO NOT clear cart, STAY on checkout
       }
 
-      // Insert Order Items and deduct inventory stock
-      for (const item of itemsPayload) {
-        const { error: itemErr } = await supabase.from("order_items").insert([
-          {
-            order_id: newOrder.id,
-            product_id: item.product_id,
-            product_name: item.product_name,
-            size: item.size,
-            color: item.color,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            total_price: item.total_price,
-          },
-        ]);
-
-        if (itemErr) {
-          console.error("[Checkout] Order items insertion error:", itemErr);
-        }
-
-        const { data: curVariant } = await supabase
-          .from("inventory")
-          .select("id, quantity")
-          .eq("product_id", item.product_id)
-          .eq("size", item.size)
-          .maybeSingle();
-
-        if (curVariant) {
-          const newQty = Math.max(0, Number(curVariant.quantity || 0) - item.quantity);
-          const { error: invUpdateErr } = await supabase
-            .from("inventory")
-            .update({ quantity: newQty, updated_at: new Date().toISOString() })
-            .eq("id", curVariant.id);
-
-          if (invUpdateErr) {
-            console.error("[Checkout] Inventory deduction error:", invUpdateErr);
-          }
-
-          if (newQty <= 5) {
-            try {
-              await supabase.from("notifications").insert([
-                {
-                  type: "stock",
-                  title: newQty === 0 ? "Out of Stock Alert" : "Low Stock Alert",
-                  message: `${item.product_name} (${item.size} - ${item.color}) is low on stock (${newQty} left).`,
-                  product_id: item.product_id,
-                  is_read: false,
-                },
-              ]);
-            } catch (stockNotifErr) {
-              console.warn("Could not insert stock notification:", stockNotifErr);
-            }
-          }
-        }
+      if (!rpcRes || rpcRes.success === false || !rpcRes.order_id) {
+        const failureMessage = rpcRes?.message || "Order creation failed. Cart preserved.";
+        console.error("[Checkout] RPC returned failure:", failureMessage);
+        toast.error(failureMessage);
+        setIsSubmitting(false);
+        return; // DO NOT clear cart, STAY on checkout
       }
 
-      setOrderId(newOrder.id);
-      try {
-        await supabase.from("notifications").insert([
-          {
-            type: "order",
-            title: "New Order Received",
-            message: `Order #${newOrder.id.slice(0, 8)} placed by ${customerName}`,
-            order_id: newOrder.id,
-            is_read: false,
-          },
-        ]);
-      } catch (notifErr) {
-        console.warn("Could not insert notification to DB:", notifErr);
-      }
+      // 6. SUCCESS: ONLY reachable when RPC transaction fully completes & commits
+      setOrderId(rpcRes.order_id);
       clearCart();
       setStep(3);
       toast.success("Order placed successfully!");
     } catch (e: any) {
-      console.error("[Checkout] Execution error:", e);
-      toast.error(e.message || "An error occurred during checkout.");
+      console.error("[Checkout] Execution exception:", e);
+      toast.error(e.message || "An error occurred while completing checkout.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -406,8 +305,14 @@ function Checkout() {
               )}
               <div className="mt-5 flex gap-3">
                 <button type="button" onClick={() => setStep(1)} className="rounded-md border border-border px-5 py-3 text-sm font-medium">Back</button>
-                <button type="button" onClick={placeOrder} className="flex-1 rounded-md bg-primary py-3 text-sm font-semibold text-primary-foreground sm:flex-none sm:px-8">
-                  Pay {inr(totals.total)}
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={placeOrder}
+                  className="flex-1 rounded-md bg-primary py-3 text-sm font-semibold text-primary-foreground sm:flex-none sm:px-8 disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+                  <span>{isSubmitting ? "Processing Order..." : `Pay ${inr(totals.total)}`}</span>
                 </button>
               </div>
             </div>
