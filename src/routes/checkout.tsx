@@ -6,6 +6,7 @@ import { getProduct } from "@/data/products";
 import { inr } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { supabase } from "@/integrations/supabase/client";
+import { UserPortalLayout } from "@/components/site/UserPortalLayout";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({
@@ -184,6 +185,19 @@ function Checkout() {
           }
           if (rpcRes.order_id) {
             setOrderId(rpcRes.order_id);
+            try {
+              await supabase.from("notifications").insert([
+                {
+                  type: "order",
+                  title: "New Order Received",
+                  message: `Order #${rpcRes.order_id.slice(0, 8)} placed by ${customerName}`,
+                  order_id: rpcRes.order_id,
+                  is_read: false,
+                },
+              ]);
+            } catch (notifErr) {
+              console.warn("Could not insert notification to DB:", notifErr);
+            }
             clearCart();
             setStep(3);
             toast.success("Order placed successfully!");
@@ -260,10 +274,39 @@ function Checkout() {
           if (invUpdateErr) {
             console.error("[Checkout] Inventory deduction error:", invUpdateErr);
           }
+
+          if (newQty <= 5) {
+            try {
+              await supabase.from("notifications").insert([
+                {
+                  type: "stock",
+                  title: newQty === 0 ? "Out of Stock Alert" : "Low Stock Alert",
+                  message: `${item.product_name} (${item.size} - ${item.color}) is low on stock (${newQty} left).`,
+                  product_id: item.product_id,
+                  is_read: false,
+                },
+              ]);
+            } catch (stockNotifErr) {
+              console.warn("Could not insert stock notification:", stockNotifErr);
+            }
+          }
         }
       }
 
       setOrderId(newOrder.id);
+      try {
+        await supabase.from("notifications").insert([
+          {
+            type: "order",
+            title: "New Order Received",
+            message: `Order #${newOrder.id.slice(0, 8)} placed by ${customerName}`,
+            order_id: newOrder.id,
+            is_read: false,
+          },
+        ]);
+      } catch (notifErr) {
+        console.warn("Could not insert notification to DB:", notifErr);
+      }
       clearCart();
       setStep(3);
       toast.success("Order placed successfully!");
@@ -274,6 +317,7 @@ function Checkout() {
   };
 
   return (
+    <UserPortalLayout>
     <div className="mx-auto max-w-4xl px-3 py-5 sm:px-5">
       <h1 className="font-display text-2xl">Checkout</h1>
 
@@ -423,5 +467,6 @@ function Checkout() {
         )}
       </div>
     </div>
+    </UserPortalLayout>
   );
 }

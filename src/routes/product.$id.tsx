@@ -10,12 +10,13 @@ import {
   AlertCircle,
   CheckCircle2,
   XCircle,
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Breadcrumb } from "@/components/site/Breadcrumb";
 import { ProductGrid } from "@/components/site/ProductGrid";
 import { ProductCarousel } from "@/components/site/ProductCarousel";
 import { Stars } from "@/components/site/Stars";
+import { StorefrontLayout } from "@/components/site/StorefrontLayout";
 import { PRODUCTS, getProduct } from "@/data/products";
 import { inr } from "@/lib/format";
 import { useStore } from "@/lib/store";
@@ -195,14 +196,8 @@ function ProductPage() {
   const dist = [72, 18, 6, 2, 2];
 
   return (
-    <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6">
-      <Breadcrumb
-        items={[
-          { label: product.group === "men" ? "Men" : product.group === "kids" ? "Kids" : "Women", to: "/c/$slug", params: { slug: product.group } },
-          { label: product.categoryLabel, to: "/c/$slug", params: { slug: product.category } },
-          { label: product.name },
-        ]}
-      />
+    <StorefrontLayout>
+    <div className="mx-auto max-w-[1400px] px-0 sm:px-5 py-0 sm:py-6">
 
       <div className="mt-8 gap-12 lg:flex">
         {/* Left Column: Mobile Gallery (Swipe) vs Desktop Gallery (Stacked Grid) */}
@@ -533,5 +528,6 @@ function ProductPage() {
         </div>
       </div>
     </div>
+    </StorefrontLayout>
   );
 }

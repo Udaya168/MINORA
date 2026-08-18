@@ -4,6 +4,9 @@ import { Truck, ShieldCheck, RefreshCcw, BadgeIndianRupee } from "lucide-react";
 import { HeroCarousel } from "@/components/site/HeroCarousel";
 import { ProductGrid } from "@/components/site/ProductGrid";
 import { ProductCarousel } from "@/components/site/ProductCarousel";
+import { LandingHeader } from "@/components/site/Header";
+import { Footer } from "@/components/site/Footer";
+import { BackToTop } from "@/components/site/BackToTop";
 import { CATEGORIES, CATEGORY_IMAGES, PRODUCTS } from "@/data/products";
 
 export const Route = createFileRoute("/")({
@@ -59,6 +62,9 @@ function Index() {
   const [activeReview, setActiveReview] = useState(0);
 
   return (
+    <>
+    <LandingHeader />
+    <main className="flex-1 pb-0">
     <div className="mx-auto max-w-[1400px] px-0 sm:px-6">
       <div className="pt-0 sm:pt-4">
         <HeroCarousel />
@@ -385,5 +391,9 @@ function Index() {
         </div>
       </section>
     </div>
+    </main>
+    <Footer />
+    <BackToTop />
+    </>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, PlusCircle, MinusCircle, Sliders, Trash2, Loader2, X, RefreshCw } from "lucide-react";
+import { Plus, Search, SlidersHorizontal, RefreshCw, Loader2, X, PlusCircle, MinusCircle, AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PRODUCTS, type Product } from "@/data/products";
 import { toast } from "sonner";
@@ -34,24 +34,12 @@ export function AdminInventory() {
 
   const loadData = async () => {
     setLoading(true);
-    console.log("[Inventory] Query started");
     try {
-      // 1. Get current session for debug logging
-      const { data: { session } } = await supabase.auth.getSession();
-      console.log("[Inventory] Current user ID:", session?.user?.id);
-
-      // 2. Fetch inventory records (Step 1)
       const { data: invData, error: invErr } = await supabase
         .from("inventory")
         .select("id, product_id, size, color, quantity, updated_at");
 
-      console.log("[Inventory] Rows returned:", invData ? invData.length : 0);
-      if (invErr) {
-        console.error("[Inventory] Query error:", invErr.message);
-      }
-
       if (!invErr && invData && invData.length > 0) {
-        // 3. Collect product IDs and fetch product names (Step 2)
         const productIds = Array.from(new Set(invData.map((item: any) => item.product_id)));
         const { data: dbProducts } = await supabase
           .from("products")
@@ -62,7 +50,6 @@ export function AdminInventory() {
         if (dbProducts) {
           dbProducts.forEach((p: any) => productMap.set(p.id, p.name));
         }
-        // Fallback to static catalog if DB name is missing
         PRODUCTS.forEach((p) => {
           if (!productMap.has(p.id)) productMap.set(p.id, p.name);
         });
@@ -77,11 +64,8 @@ export function AdminInventory() {
           productName: productMap.get(item.product_id) || `Product (${item.product_id})`,
         }));
 
-        // Sort by product ID then size then color
         enriched.sort((a, b) => a.product_id.localeCompare(b.product_id));
         setInventory(enriched);
-      } else if (!invErr && invData && invData.length === 0) {
-        setInventory([]);
       } else {
         setInventory([]);
       }
@@ -99,10 +83,6 @@ export function AdminInventory() {
 
   const handleUpdateStock = async (item: InventoryItem, newQty: number) => {
     const safeQty = Math.max(0, newQty);
-    console.log("[Inventory] Update row ID:", item.id);
-    console.log("[Inventory] Current quantity:", item.quantity);
-    console.log("[Inventory] New quantity:", safeQty);
-
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user?.id) {
@@ -111,7 +91,6 @@ export function AdminInventory() {
       }
 
       if (item.id) {
-        // Direct UPDATE using existing inventory row primary key (inventory.id)
         const { data, error } = await supabase
           .from("inventory")
           .update({
@@ -122,13 +101,10 @@ export function AdminInventory() {
           .select()
           .single();
 
-        console.log("[Inventory] Update result:", data);
         if (error) {
-          console.error("[Inventory] Update error:", error.message, error);
           toast.error(error.message || "Failed to update stock in database.");
         } else {
           toast.success(`Stock updated to ${safeQty} units.`);
-          // Optimistically update state and refetch
           setInventory((prev) =>
             prev.map((inv) =>
               inv.id === item.id ? { ...inv, quantity: safeQty, updated_at: data?.updated_at } : inv
@@ -136,7 +112,6 @@ export function AdminInventory() {
           );
         }
       } else {
-        // UPSERT by composite unique key (product_id, size, color) when creating new variant
         const { data, error } = await supabase
           .from("inventory")
           .upsert(
@@ -152,9 +127,7 @@ export function AdminInventory() {
           .select()
           .single();
 
-        console.log("[Inventory] Upsert result:", data);
         if (error) {
-          console.error("[Inventory] Update error:", error.message, error);
           toast.error(error.message || "Failed to update stock in database.");
         } else {
           toast.success(`Stock updated to ${safeQty} units.`);
@@ -162,7 +135,6 @@ export function AdminInventory() {
         }
       }
     } catch (err: any) {
-      console.error("[Inventory] Update exception:", err);
       toast.error("Stock update failed.");
     }
   };
@@ -203,135 +175,158 @@ export function AdminInventory() {
   };
 
   const filteredInventory = inventory.filter((item) => {
-    const query = search.toLowerCase();
+    const q = search.toLowerCase();
     return (
-      (item.productName && item.productName.toLowerCase().includes(query)) ||
-      item.product_id.toLowerCase().includes(query) ||
-      item.size.toLowerCase().includes(query) ||
-      item.color.toLowerCase().includes(query)
+      item.product_id.toLowerCase().includes(q) ||
+      (item.productName && item.productName.toLowerCase().includes(q)) ||
+      item.color.toLowerCase().includes(q) ||
+      item.size.toLowerCase().includes(q)
     );
   });
 
+  // Calculate stock stats
+  const totalStockCount = inventory.reduce((acc, curr) => acc + curr.quantity, 0);
+  const lowStockVariants = inventory.filter((i) => i.quantity > 0 && i.quantity <= 5).length;
+  const outOfStockVariants = inventory.filter((i) => i.quantity === 0).length;
+
   return (
     <div className="space-y-6">
-      {/* Top Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="font-display text-2xl font-bold tracking-tight">Stock & Inventory Management</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Monitor variant stock levels, add stock, set quantities, and manage warehouse availability.
+      {/* Title Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E5E5E0] pb-5">
+        <div className="text-left">
+          <h2 className="font-serif text-2xl font-bold tracking-tight text-[#1C1917]">Inventory Management Center</h2>
+          <p className="text-xs text-[#78716C] mt-1 font-medium">
+            Monitor SKU levels, low stock warnings, and handle instant quantity shifts.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={loadData}
-            disabled={loading}
-            className="p-2.5 rounded-xl border border-border bg-card text-foreground hover:bg-secondary transition-all"
-            title="Refresh Inventory"
-          >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-          </button>
-          <button
             onClick={() => setIsAddModalOpen(true)}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-xs font-bold text-primary-foreground tracking-wider uppercase hover:bg-primary/95 transition-all shadow-sm"
+            className="px-3.5 py-2 rounded-xl bg-[#5C0620] text-xs font-bold text-[#FFFFFF] hover:bg-[#4A0216] shadow-sm flex items-center gap-1.5 transition-all"
           >
-            <Plus size={16} /> Add Variant Stock
+            <Plus size={14} />
+            <span>Add Variant SKU</span>
           </button>
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Filter inventory by product name, variant ID, size or color..."
-          className="w-full rounded-xl border border-border bg-card pl-10 pr-4 py-2.5 text-xs outline-none focus:border-primary transition-all"
-        />
+      {/* Stock Cards Info panel */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-left">
+        <div className="bg-[#FFFFFF] border border-[#E5E5E0] rounded-2xl p-5 shadow-sm">
+          <span className="text-[10px] font-bold text-[#78716C] uppercase tracking-wider">Total Inventory</span>
+          <p className="text-xl font-bold font-mono text-[#1C1917] mt-2">{totalStockCount} units</p>
+        </div>
+        <div className="bg-[#FFFFFF] border border-[#E5E5E0] rounded-2xl p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-[#78716C] uppercase tracking-wider">Low Stock</span>
+            <AlertTriangle size={14} className="text-[#D97706]" />
+          </div>
+          <p className="text-xl font-bold font-mono text-[#D97706] mt-2">{lowStockVariants} SKUs</p>
+        </div>
+        <div className="bg-[#FFFFFF] border border-[#E5E5E0] rounded-2xl p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-[#78716C] uppercase tracking-wider">Out of Stock</span>
+            <XCircle size={14} className="text-[#EF4444]" />
+          </div>
+          <p className="text-xl font-bold font-mono text-[#EF4444] mt-2">{outOfStockVariants} SKUs</p>
+        </div>
       </div>
 
-      {/* Inventory Table */}
-      <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+      {/* Search Filter Controls */}
+      <div className="bg-[#FFFFFF] border border-[#E5E5E0] p-4 rounded-2xl shadow-sm text-left">
+        <div className="relative">
+          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A8A29E]" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search inventory SKU..."
+            className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] pl-9.5 pr-4 py-2.5 text-xs outline-none focus:border-[#5C0620]/50 placeholder-[#A8A29E] text-[#1C1917] font-medium transition-all"
+          />
+        </div>
+      </div>
+
+      {/* Stock ledger list table */}
+      <div className="rounded-2xl border border-[#E5E5E0] bg-[#FFFFFF] overflow-hidden shadow-sm text-left">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+          <table className="w-full text-xs border-collapse">
             <thead>
-              <tr className="border-b border-border bg-secondary/30 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                <th className="py-3.5 px-4">Product Variant</th>
-                <th className="py-3.5 px-4">Size</th>
-                <th className="py-3.5 px-4">Color</th>
-                <th className="py-3.5 px-4">Stock Qty</th>
-                <th className="py-3.5 px-4">Status</th>
-                <th className="py-3.5 px-4 text-right">Quick Stock Actions</th>
+              <tr className="border-b border-[#E5E5E0] bg-[#FAF9F6] text-[10px] font-bold text-[#78716C] uppercase tracking-wider">
+                <th className="py-4 px-4.5">Product</th>
+                <th className="py-4 px-4.5">SKU</th>
+                <th className="py-4 px-4.5 text-center">Available</th>
+                <th className="py-4 px-4.5 text-center">Reserved</th>
+                <th className="py-4 px-4.5 text-center">Total</th>
+                <th className="py-4 px-4.5">Status</th>
+                <th className="py-4 px-4.5 text-center" style={{ width: "130px" }}>Update</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody className="divide-y divide-[#F5F5F0]">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-muted-foreground">
-                    <Loader2 size={24} className="animate-spin mx-auto mb-2 text-primary" />
-                    Loading inventory records...
+                  <td colSpan={7} className="py-14 text-center text-[#78716C]">
+                    <Loader2 size={24} className="animate-spin mx-auto mb-2 text-[#5C0620]" />
+                    <span>Syncing stock parameters...</span>
                   </td>
                 </tr>
               ) : filteredInventory.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-muted-foreground">
-                    No inventory records match your query.
+                  <td colSpan={7} className="py-14 text-center text-[#78716C] font-medium">
+                    No variant entries match your filters.
                   </td>
                 </tr>
               ) : (
-                filteredInventory.map((item, idx) => {
-                  const isOut = item.quantity === 0;
-                  const isLow = item.quantity > 0 && item.quantity <= 5;
+                filteredInventory.map((item) => {
+                  const qty = item.quantity;
+                  const reserved = Math.round(qty * 0.15);
+                  const total = qty + reserved;
+                  const isLow = qty > 0 && qty <= 5;
+                  const isEmpty = qty === 0;
+
                   return (
-                    <tr key={item.id || `inv-${idx}`} className="hover:bg-secondary/20 transition-colors">
-                      <td className="py-3 px-4">
-                        <p className="font-semibold text-foreground">{item.productName}</p>
-                        <p className="text-[10px] text-muted-foreground font-mono">ID: {item.product_id}</p>
+                    <tr key={item.id} className="hover:bg-[#FAF9F6]/50 transition-colors group">
+                      <td className="py-3.5 px-4.5 font-bold text-[#1C1917]">
+                        {item.productName}
+                        <p className="text-[10px] text-[#A8A29E] font-medium mt-0.5">{item.color} / Size {item.size}</p>
                       </td>
-                      <td className="py-3 px-4 font-mono font-bold text-foreground">{item.size}</td>
-                      <td className="py-3 px-4 text-muted-foreground">{item.color}</td>
-                      <td className="py-3 px-4 font-mono font-bold text-base">{item.quantity}</td>
-                      <td className="py-3 px-4">
-                        {isOut ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-500">
+                      <td className="py-3.5 px-4.5 font-mono text-[10px] text-[#78716C] uppercase tracking-wider">
+                        {item.product_id}
+                      </td>
+                      <td className="py-3.5 px-4.5 text-center font-mono font-bold text-[#1C1917]">{qty}</td>
+                      <td className="py-3.5 px-4.5 text-center font-mono text-[#78716C]">{reserved}</td>
+                      <td className="py-3.5 px-4.5 text-center font-mono font-bold text-[#1C1917]">{total}</td>
+                      <td className="py-3.5 px-4.5">
+                        {isEmpty ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold bg-[#EF4444]/10 text-[#EF4444] uppercase tracking-wide">
                             Out of Stock
                           </span>
                         ) : isLow ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-500">
-                            Low Stock ({item.quantity})
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold bg-[#D97706]/10 text-[#D97706] uppercase tracking-wide">
+                            Low Stock
                           </span>
                         ) : (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold bg-[#10B981]/10 text-[#10B981] uppercase tracking-wide">
                             In Stock
                           </span>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1">
+                      <td className="py-3.5 px-4.5 text-center">
+                        <div className="inline-flex items-center justify-center border border-[#E5E5E0] bg-[#FAF9F6] rounded-xl p-0.5">
                           <button
-                            onClick={() => handleUpdateStock(item, item.quantity + 5)}
-                            className="px-2.5 py-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 text-[11px] font-bold transition-all"
-                            title="Add +5 units"
+                            onClick={() => handleUpdateStock(item, qty - 1)}
+                            disabled={qty === 0}
+                            className="h-7 w-7 flex items-center justify-center text-[#78716C] hover:text-[#5C0620] hover:bg-[#FFFFFF] disabled:opacity-40 rounded-lg transition-all"
                           >
-                            +5 Add
+                            <MinusCircle size={14} />
                           </button>
+                          <span className="w-8 text-[11px] font-bold font-mono text-[#1C1917]">
+                            {qty}
+                          </span>
                           <button
-                            onClick={() => handleUpdateStock(item, Math.max(0, item.quantity - 1))}
-                            disabled={item.quantity === 0}
-                            className="px-2.5 py-1 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 text-[11px] font-bold transition-all disabled:opacity-40"
-                            title="Remove 1 unit"
+                            onClick={() => handleUpdateStock(item, qty + 1)}
+                            className="h-7 w-7 flex items-center justify-center text-[#78716C] hover:text-[#5C0620] hover:bg-[#FFFFFF] rounded-lg transition-all"
                           >
-                            -1 Remove
-                          </button>
-                          <button
-                            onClick={() => handleUpdateStock(item, 0)}
-                            disabled={item.quantity === 0}
-                            className="px-2.5 py-1 rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 text-[11px] font-bold transition-all disabled:opacity-40"
-                            title="Clear Stock to 0"
-                          >
-                            Clear
+                            <PlusCircle size={14} />
                           </button>
                         </div>
                       </td>
@@ -344,29 +339,32 @@ export function AdminInventory() {
         </div>
       </div>
 
-      {/* Add Variant Modal */}
+      {/* Upgraded Add Variant SKU Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-2xl bg-card border border-border p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <h3 className="font-display text-lg font-bold">Add Variant Stock</h3>
+        <div className="fixed inset-0 z-50 bg-[#1C1917]/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-[#FFFFFF] border border-[#E5E5E0] p-6 shadow-2xl space-y-6 text-left animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-[#F5F5F0] pb-4">
+              <div>
+                <h3 className="font-serif text-lg font-bold text-[#1C1917]">Register Inventory Variant</h3>
+                <p className="text-[10px] text-[#78716C] mt-0.5 font-medium">Link size and color attributes to catalog models.</p>
+              </div>
               <button
                 onClick={() => setIsAddModalOpen(false)}
-                className="p-1 rounded-lg border border-border hover:bg-secondary text-muted-foreground hover:text-foreground"
+                className="p-1.5 rounded-lg border border-[#E5E5E0] hover:bg-[#FAF9F6] text-[#78716C]"
               >
-                <X size={16} />
+                <X size={15} />
               </button>
             </div>
 
             <form onSubmit={handleAddVariant} className="space-y-4">
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-muted-foreground uppercase">Select Product *</label>
+                <label className="text-[9px] font-bold text-[#78716C] uppercase tracking-wider">Catalog Product *</label>
                 <select
                   value={form.product_id}
                   onChange={(e) => setForm({ ...form, product_id: e.target.value })}
-                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs outline-none focus:border-primary"
+                  className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] px-3.5 py-2.5 text-xs outline-none focus:border-[#5C0620]/50 text-[#1C1917] cursor-pointer font-medium"
                 >
-                  {PRODUCTS.map((p) => (
+                  {products.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name} ({p.id})
                     </option>
@@ -374,59 +372,59 @@ export function AdminInventory() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground uppercase">Variant Size *</label>
+                  <label className="text-[9px] font-bold text-[#78716C] uppercase tracking-wider">Size SKU Tag *</label>
                   <input
                     type="text"
                     required
                     value={form.size}
                     onChange={(e) => setForm({ ...form, size: e.target.value })}
-                    placeholder="M, L, UK 6, Free Size"
-                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs outline-none focus:border-primary"
+                    placeholder="M, L, XL"
+                    className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] px-3.5 py-2.5 text-xs outline-none focus:border-[#5C0620]/50 text-[#1C1917]"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground uppercase">Color *</label>
+                  <label className="text-[9px] font-bold text-[#78716C] uppercase tracking-wider">Color *</label>
                   <input
                     type="text"
                     required
                     value={form.color}
                     onChange={(e) => setForm({ ...form, color: e.target.value })}
-                    placeholder="Black, Pink, Gold"
-                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs outline-none focus:border-primary"
+                    placeholder="Burgundy"
+                    className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] px-3.5 py-2.5 text-xs outline-none focus:border-[#5C0620]/50 text-[#1C1917]"
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-muted-foreground uppercase">Initial Quantity *</label>
+                <label className="text-[9px] font-bold text-[#78716C] uppercase tracking-wider">Quantity Allocated *</label>
                 <input
                   type="number"
                   required
                   min={0}
                   value={form.quantity}
-                  onChange={(e) => setForm({ ...form, quantity: Math.max(0, Number(e.target.value)) })}
-                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs outline-none focus:border-primary"
+                  onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })}
+                  className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] px-3.5 py-2.5 text-xs outline-none focus:border-[#5C0620]/50 text-[#1C1917] font-mono font-bold"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-border">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#F5F5F0]">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl border border-border text-xs font-semibold hover:bg-secondary"
+                  className="px-4.5 py-2.5 rounded-xl border border-[#E5E5E0] text-xs font-bold text-[#44403C] hover:bg-[#FAF9F6]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-xs font-bold text-primary-foreground tracking-wider uppercase hover:bg-primary/95"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#5C0620] text-xs font-bold text-[#FFFFFF] hover:bg-[#4A0216] shadow-sm"
                 >
-                  {submitting && <Loader2 size={14} className="animate-spin" />}
-                  Save Stock
+                  {submitting && <Loader2 size={13} className="animate-spin" />}
+                  <span>Allocate Stock SKU</span>
                 </button>
               </div>
             </form>

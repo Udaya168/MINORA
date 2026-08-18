@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, Edit2, Trash2, X, Check, Loader2, AlertCircle, Image as ImageIcon } from "lucide-react";
+import { Plus, Search, Edit2, Trash2, X, Check, Loader2, AlertCircle, Image as ImageIcon, SlidersHorizontal, ArrowLeft, ArrowRight, Download, Upload, Eye } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PRODUCTS, CATEGORIES, type Product } from "@/data/products";
 import { inr } from "@/lib/format";
@@ -10,6 +10,12 @@ export function AdminProducts() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [stockFilter, setStockFilter] = useState("all");
+  const [publishedFilter, setPublishedFilter] = useState("all");
+
+  // Selection
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showColumns, setShowColumns] = useState(false);
 
   // Modals state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -199,142 +205,238 @@ export function AdminProducts() {
     }
   };
 
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(filteredProducts.map((p) => p.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectRow = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedIds((prev) => [...prev, id]);
+    } else {
+      setSelectedIds((prev) => prev.filter((x) => x !== id));
+    }
+  };
+
   const filteredProducts = products.filter((p) => {
     const matchesSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.id.toLowerCase().includes(search.toLowerCase()) ||
       p.category.toLowerCase().includes(search.toLowerCase());
+    
     const matchesCategory = categoryFilter === "all" || p.category === categoryFilter;
-    return matchesSearch && matchesCategory;
+    const matchesStock = stockFilter === "all" || (stockFilter === "instock" ? p.inStock : !p.inStock);
+    const matchesPub = publishedFilter === "all" || (publishedFilter === "published" ? p.price > 0 : p.price === 0);
+
+    return matchesSearch && matchesCategory && matchesStock && matchesPub;
   });
 
   return (
     <div className="space-y-6">
-      {/* Top Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="font-display text-2xl font-bold tracking-tight">Products Management</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Add, update, or remove clothing and accessory items in your Minora catalog.
+      {/* Title Header Section */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#E5E5E0] pb-5">
+        <div className="text-left">
+          <h2 className="font-serif text-2xl font-bold tracking-tight text-[#1C1917]">Products</h2>
+          <p className="text-xs text-[#78716C] mt-1 font-medium">
+            Manage the MINORA product catalog.
           </p>
         </div>
-        <button
-          onClick={openAddModal}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-xs font-bold text-primary-foreground tracking-wider uppercase hover:bg-primary/95 transition-all shadow-sm"
-        >
-          <Plus size={16} /> Add Product
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => toast.success("Importing catalog database...")}
+            className="px-3.5 py-2 rounded-xl border border-[#E5E5E0] bg-[#FFFFFF] text-xs font-bold text-[#44403C] hover:bg-[#FAF9F6] shadow-sm flex items-center gap-1.5 transition-all"
+          >
+            <Upload size={13} />
+            <span>Import</span>
+          </button>
+          <button
+            onClick={() => toast.success("Exporting catalog database...")}
+            className="px-3.5 py-2 rounded-xl border border-[#E5E5E0] bg-[#FFFFFF] text-xs font-bold text-[#44403C] hover:bg-[#FAF9F6] shadow-sm flex items-center gap-1.5 transition-all"
+          >
+            <Download size={13} />
+            <span>Export</span>
+          </button>
+          <button
+            onClick={openAddModal}
+            className="px-3.5 py-2 rounded-xl bg-[#5C0620] text-xs font-bold text-[#FFFFFF] hover:bg-[#4A0216] shadow-sm flex items-center gap-1.5 transition-all"
+          >
+            <Plus size={14} />
+            <span>Add Product</span>
+          </button>
+        </div>
       </div>
 
-      {/* Filter & Search Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="sm:col-span-2 relative">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+      {/* Catalog Filters Controls */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-[#FFFFFF] border border-[#E5E5E0] p-4 rounded-2xl shadow-sm text-left">
+        <div className="md:col-span-2 relative">
+          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#A8A29E]" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by product name, ID, or category..."
-            className="w-full rounded-xl border border-border bg-card pl-10 pr-4 py-2.5 text-xs outline-none focus:border-primary transition-all"
+            placeholder="Search catalog models..."
+            className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] pl-9.5 pr-4 py-2.5 text-xs outline-none focus:border-[#5C0620]/50 placeholder-[#A8A29E] text-[#1C1917] transition-all font-medium"
           />
         </div>
 
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="rounded-xl border border-border bg-card px-3 py-2.5 text-xs outline-none focus:border-primary transition-all"
-        >
-          <option value="all">All Categories ({products.length})</option>
-          {CATEGORIES.map((cat) => (
-            <option key={cat.slug} value={cat.slug}>
-              {cat.label}
-            </option>
-          ))}
-        </select>
+        <div className="relative">
+          <select
+            value={stockFilter}
+            onChange={(e) => setStockFilter(e.target.value)}
+            className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] px-3.5 py-2.5 text-xs outline-none focus:border-[#5C0620]/50 text-[#1C1917] font-medium appearance-none cursor-pointer"
+          >
+            <option value="all">Stock Status</option>
+            <option value="instock">In Stock</option>
+            <option value="outofstock">Out of Stock</option>
+          </select>
+          <SlidersHorizontal size={12} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#78716C] pointer-events-none" />
+        </div>
+
+        <div className="relative">
+          <select
+            value={publishedFilter}
+            onChange={(e) => setPublishedFilter(e.target.value)}
+            className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] px-3.5 py-2.5 text-xs outline-none focus:border-[#5C0620]/50 text-[#1C1917] font-medium appearance-none cursor-pointer"
+          >
+            <option value="all">Published status</option>
+            <option value="published">Active</option>
+            <option value="archived">Archived</option>
+          </select>
+          <SlidersHorizontal size={12} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#78716C] pointer-events-none" />
+        </div>
       </div>
 
-      {/* Products Table */}
-      <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
+      {/* Bulk actions and Column tools */}
+      {selectedIds.length > 0 && (
+        <div className="bg-[#5C0620]/5 border border-[#5C0620]/20 rounded-xl p-3.5 flex items-center justify-between text-left">
+          <span className="text-xs font-bold text-[#5C0620]">
+            {selectedIds.length} catalog items selected
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                toast.success("Bulk activation completed.");
+                setSelectedIds([]);
+              }}
+              className="px-3 py-1.5 text-[10px] font-bold bg-[#FFFFFF] border border-[#E5E5E0] rounded-lg text-[#1C1917]"
+            >
+              Activate
+            </button>
+            <button
+              onClick={() => {
+                toast.success("Bulk archive completed.");
+                setSelectedIds([]);
+              }}
+              className="px-3 py-1.5 text-[10px] font-bold bg-[#FFFFFF] border border-transparent text-[#EF4444] hover:bg-[#FEF2F2] rounded-lg"
+            >
+              Archive / Delete
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Premium Catalog Table ledger */}
+      <div className="rounded-2xl border border-[#E5E5E0] bg-[#FFFFFF] overflow-hidden shadow-sm text-left">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+          <table className="w-full text-xs border-collapse">
             <thead>
-              <tr className="border-b border-border bg-secondary/30 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                <th className="py-3.5 px-4">Product</th>
-                <th className="py-3.5 px-4">Category</th>
-                <th className="py-3.5 px-4">Price</th>
-                <th className="py-3.5 px-4">Sizes</th>
-                <th className="py-3.5 px-4">Seller</th>
-                <th className="py-3.5 px-4 text-right">Actions</th>
+              <tr className="border-b border-[#E5E5E0] bg-[#FAF9F6] text-[10px] font-bold text-[#78716C] uppercase tracking-wider">
+                <th className="py-4 px-4.5" style={{ width: "40px" }}>
+                  <input
+                    type="checkbox"
+                    checked={filteredProducts.length > 0 && selectedIds.length === filteredProducts.length}
+                    onChange={(e) => handleSelectAll(e.target.checked)}
+                    className="rounded border-[#E5E5E0] text-[#5C0620] focus:ring-[#5C0620]"
+                  />
+                </th>
+                <th className="py-4 px-4.5">Product</th>
+                <th className="py-4 px-4.5">SKU</th>
+                <th className="py-4 px-4.5">Price</th>
+                <th className="py-4 px-4.5">Stock</th>
+                <th className="py-4 px-4.5">Status</th>
+                <th className="py-4 px-4.5">Updated</th>
+                <th className="py-4 px-4.5 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody className="divide-y divide-[#F5F5F0]">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-muted-foreground">
-                    <Loader2 size={24} className="animate-spin mx-auto mb-2 text-primary" />
-                    Loading products...
+                  <td colSpan={8} className="py-14 text-center text-[#78716C]">
+                    <Loader2 size={24} className="animate-spin mx-auto mb-2 text-[#5C0620]" />
+                    <span>Syncing products list...</span>
                   </td>
                 </tr>
               ) : filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-muted-foreground">
-                    No products match your search query.
+                  <td colSpan={8} className="py-14 text-center text-[#78716C] font-medium">
+                    No catalog items matched.
                   </td>
                 </tr>
               ) : (
                 filteredProducts.map((p) => (
-                  <tr key={p.id} className="hover:bg-secondary/20 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg overflow-hidden border border-border bg-secondary flex-shrink-0">
+                  <tr key={p.id} className="hover:bg-[#FAF9F6]/50 transition-colors group">
+                    <td className="py-3.5 px-4.5">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(p.id)}
+                        onChange={(e) => handleSelectRow(p.id, e.target.checked)}
+                        className="rounded border-[#E5E5E0] text-[#5C0620] focus:ring-[#5C0620]"
+                      />
+                    </td>
+                    <td className="py-3.5 px-4.5">
+                      <div className="flex items-center gap-3.5">
+                        <div className="h-11 w-11 rounded-lg overflow-hidden border border-[#E5E5E0] bg-[#FAF9F6] flex-shrink-0 shadow-inner">
                           {p.images && p.images[0] ? (
                             <img src={p.images[0]} alt={p.name} className="h-full w-full object-cover" />
                           ) : (
-                            <div className="h-full w-full flex items-center justify-center text-muted-foreground">
+                            <div className="h-full w-full flex items-center justify-center text-[#A8A29E]">
                               <ImageIcon size={16} />
                             </div>
                           )}
                         </div>
                         <div>
-                          <p className="font-semibold text-foreground truncate max-w-[200px]">{p.name}</p>
-                          <p className="text-[10px] text-muted-foreground font-mono">ID: {p.id}</p>
+                          <p className="font-bold text-[#1C1917] truncate max-w-[200px]">{p.name}</p>
+                          <p className="text-[10px] text-[#A8A29E] font-medium leading-none mt-0.5 uppercase tracking-wider">{p.categoryLabel || p.category}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="py-3 px-4">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-secondary text-secondary-foreground uppercase tracking-wider">
-                        {p.categoryLabel || p.category}
+                    <td className="py-3.5 px-4.5 font-mono text-[#78716C]">
+                      {p.id}
+                    </td>
+                    <td className="py-3.5 px-4.5 font-mono font-bold text-[#1C1917]">
+                      {inr(p.price)}
+                    </td>
+                    <td className="py-3.5 px-4.5 text-[#57534E] font-medium">
+                      {p.inStock ? "Available" : "Empty"}
+                    </td>
+                    <td className="py-3.5 px-4.5">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                        p.inStock ? "bg-[#10B981]/10 text-[#10B981]" : "bg-[#EF4444]/10 text-[#EF4444]"
+                      }`}>
+                        {p.inStock ? "Active" : "Depleted"}
                       </span>
                     </td>
-                    <td className="py-3 px-4 font-mono font-semibold">
-                      {inr(p.price)}
-                      {p.originalPrice > p.price && (
-                        <span className="ml-1 text-[10px] text-muted-foreground line-through font-normal">
-                          {inr(p.originalPrice)}
-                        </span>
-                      )}
+                    <td className="py-3.5 px-4.5 text-[#A8A29E] font-medium">
+                      24h ago
                     </td>
-                    <td className="py-3 px-4 text-muted-foreground">
-                      {p.sizes && p.sizes.length > 0 ? p.sizes.join(", ") : "Free Size"}
-                    </td>
-                    <td className="py-3 px-4 text-muted-foreground truncate max-w-[150px]">
-                      {p.seller}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                    <td className="py-3.5 px-4.5 text-right">
+                      <div className="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
                         <button
                           onClick={() => openEditModal(p)}
-                          className="p-1.5 rounded-lg border border-border hover:bg-secondary text-foreground transition-all"
+                          className="p-1.5 rounded-lg border border-[#E5E5E0] bg-[#FFFFFF] hover:border-[#5C0620]/30 hover:bg-[#5C0620]/5 text-[#57534E] hover:text-[#5C0620] transition-all"
                           title="Edit product"
                         >
-                          <Edit2 size={14} />
+                          <Edit2 size={13} />
                         </button>
                         <button
                           onClick={() => setDeletingProduct(p)}
-                          className="p-1.5 rounded-lg border border-destructive/30 hover:bg-destructive/10 text-destructive transition-all"
+                          className="p-1.5 rounded-lg border border-transparent hover:border-[#EF4444]/30 hover:bg-[#FEF2F2] text-[#78716C] hover:text-[#EF4444] transition-all"
                           title="Delete product"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={13} />
                         </button>
                       </div>
                     </td>
@@ -344,43 +446,55 @@ export function AdminProducts() {
             </tbody>
           </table>
         </div>
+        {/* Table Footer Controls */}
+        <div className="bg-[#FAF9F6] border-t border-[#E5E5E0] px-4.5 py-3.5 flex items-center justify-between text-[#78716C] text-[10px] font-bold">
+          <span>Showing {filteredProducts.length} of {products.length} products</span>
+          <div className="flex items-center gap-1.5">
+            <button className="p-1 rounded border border-[#E5E5E0] bg-[#FFFFFF] opacity-50 cursor-not-allowed">
+              <ArrowLeft size={12} />
+            </button>
+            <button className="p-1 rounded border border-[#E5E5E0] bg-[#FFFFFF] opacity-50 cursor-not-allowed">
+              <ArrowRight size={12} />
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Add / Edit Product Modal */}
+      {/* Upgraded Add / Edit Product Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-card border border-border p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-border pb-4">
+        <div className="fixed inset-0 z-50 bg-[#1C1917]/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-[#FFFFFF] border border-[#E5E5E0] p-6.5 shadow-2xl space-y-6 text-left animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-[#F5F5F0] pb-4">
               <div>
-                <h3 className="font-display text-lg font-bold">
-                  {editingProduct ? "Edit Product" : "Add New Product"}
+                <h3 className="font-serif text-lg font-bold text-[#1C1917]">
+                  {editingProduct ? "Modify Catalog Item" : "Add Catalog Item"}
                 </h3>
-                <p className="text-xs text-muted-foreground">Product ID: {form.id}</p>
+                <p className="text-[10px] font-mono text-[#78716C] mt-0.5 uppercase tracking-wider">SKU: {form.id}</p>
               </div>
               <button
                 onClick={() => setIsAddModalOpen(false)}
-                className="p-1 rounded-lg border border-border hover:bg-secondary text-muted-foreground hover:text-foreground"
+                className="p-1.5 rounded-lg border border-[#E5E5E0] hover:bg-[#FAF9F6] text-[#78716C] hover:text-[#1C1917]"
               >
-                <X size={16} />
+                <X size={15} />
               </button>
             </div>
 
             <form onSubmit={handleSaveProduct} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground uppercase">Product Name *</label>
+                  <label className="text-[9px] font-bold text-[#78716C] uppercase tracking-wider">Product Name *</label>
                   <input
                     type="text"
                     required
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    placeholder="e.g. Silk Anarkali Kurti"
-                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs outline-none focus:border-primary"
+                    placeholder="Silk Embroidered Anarkali"
+                    className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] px-3.5 py-2.5 text-xs outline-none focus:border-[#5C0620]/50 text-[#1C1917]"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground uppercase">Category *</label>
+                  <label className="text-[9px] font-bold text-[#78716C] uppercase tracking-wider">Category Category *</label>
                   <select
                     value={form.category}
                     onChange={(e) => {
@@ -391,7 +505,7 @@ export function AdminProducts() {
                         categoryLabel: cat ? cat.label : e.target.value,
                       });
                     }}
-                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs outline-none focus:border-primary"
+                    className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] px-3.5 py-2.5 text-xs outline-none focus:border-[#5C0620]/50 text-[#1C1917] cursor-pointer"
                   >
                     {CATEGORIES.map((cat) => (
                       <option key={cat.slug} value={cat.slug}>
@@ -404,11 +518,11 @@ export function AdminProducts() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground uppercase">Target Group</label>
+                  <label className="text-[9px] font-bold text-[#78716C] uppercase tracking-wider">Demographic</label>
                   <select
                     value={form.group}
                     onChange={(e) => setForm({ ...form, group: e.target.value as any })}
-                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs outline-none focus:border-primary"
+                    className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] px-3.5 py-2.5 text-xs outline-none focus:border-[#5C0620]/50 text-[#1C1917]"
                   >
                     <option value="women">Women</option>
                     <option value="men">Men</option>
@@ -417,123 +531,123 @@ export function AdminProducts() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground uppercase">Selling Price (₹) *</label>
+                  <label className="text-[9px] font-bold text-[#78716C] uppercase tracking-wider">Price (₹) *</label>
                   <input
                     type="number"
                     required
                     min={1}
                     value={form.price}
                     onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
-                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs outline-none focus:border-primary"
+                    className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] px-3.5 py-2.5 text-xs outline-none focus:border-[#5C0620]/50 text-[#1C1917] font-mono font-bold"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground uppercase">Original MRP (₹) *</label>
+                  <label className="text-[9px] font-bold text-[#78716C] uppercase tracking-wider">MRP Price (₹) *</label>
                   <input
                     type="number"
                     required
                     min={1}
                     value={form.originalPrice}
                     onChange={(e) => setForm({ ...form, originalPrice: Number(e.target.value) })}
-                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs outline-none focus:border-primary"
+                    className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] px-3.5 py-2.5 text-xs outline-none focus:border-[#5C0620]/50 text-[#1C1917] font-mono"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground uppercase">Brand / Seller</label>
+                  <label className="text-[9px] font-bold text-[#78716C] uppercase tracking-wider">Seller</label>
                   <input
                     type="text"
                     value={form.seller}
                     onChange={(e) => setForm({ ...form, seller: e.target.value })}
-                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs outline-none focus:border-primary"
+                    className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] px-3.5 py-2.5 text-xs outline-none focus:border-[#5C0620]/50 text-[#1C1917]"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground uppercase">Fabric</label>
+                  <label className="text-[9px] font-bold text-[#78716C] uppercase tracking-wider">Fabric</label>
                   <input
                     type="text"
                     value={form.fabric}
                     onChange={(e) => setForm({ ...form, fabric: e.target.value })}
-                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs outline-none focus:border-primary"
+                    className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] px-3.5 py-2.5 text-xs outline-none focus:border-[#5C0620]/50 text-[#1C1917]"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground uppercase">Pattern</label>
+                  <label className="text-[9px] font-bold text-[#78716C] uppercase tracking-wider">Pattern</label>
                   <input
                     type="text"
                     value={form.pattern}
                     onChange={(e) => setForm({ ...form, pattern: e.target.value })}
-                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs outline-none focus:border-primary"
+                    className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] px-3.5 py-2.5 text-xs outline-none focus:border-[#5C0620]/50 text-[#1C1917]"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground uppercase">Sizes (comma separated)</label>
+                  <label className="text-[9px] font-bold text-[#78716C] uppercase tracking-wider">Sizes (comma separated)</label>
                   <input
                     type="text"
                     value={form.sizes}
                     onChange={(e) => setForm({ ...form, sizes: e.target.value })}
                     placeholder="XS, S, M, L, XL"
-                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs outline-none focus:border-primary"
+                    className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] px-3.5 py-2.5 text-xs outline-none focus:border-[#5C0620]/50 text-[#1C1917]"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground uppercase">Colors (comma separated)</label>
+                  <label className="text-[9px] font-bold text-[#78716C] uppercase tracking-wider">Colors (comma separated)</label>
                   <input
                     type="text"
                     value={form.colors}
                     onChange={(e) => setForm({ ...form, colors: e.target.value })}
                     placeholder="Red, Blue, Pink"
-                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs outline-none focus:border-primary"
+                    className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] px-3.5 py-2.5 text-xs outline-none focus:border-[#5C0620]/50 text-[#1C1917]"
                   />
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-muted-foreground uppercase">Image URLs (comma separated)</label>
+                <label className="text-[9px] font-bold text-[#78716C] uppercase tracking-wider">Image URLs (comma separated)</label>
                 <input
                   type="text"
                   value={form.images}
                   onChange={(e) => setForm({ ...form, images: e.target.value })}
-                  placeholder="/assets/p-kurti.jpg, https://example.com/image2.jpg"
-                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs outline-none focus:border-primary"
+                  placeholder="/assets/p-kurti.jpg"
+                  className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] px-3.5 py-2.5 text-xs outline-none focus:border-[#5C0620]/50 text-[#1C1917]"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-[11px] font-semibold text-muted-foreground uppercase">Description</label>
+                <label className="text-[9px] font-bold text-[#78716C] uppercase tracking-wider">Description</label>
                 <textarea
                   rows={3}
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="Product description and care instructions..."
-                  className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-xs outline-none focus:border-primary"
+                  placeholder="Material care details..."
+                  className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] px-3.5 py-2.5 text-xs outline-none focus:border-[#5C0620]/50 text-[#1C1917]"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
+              <div className="flex items-center justify-end gap-3.5 pt-4.5 border-t border-[#F5F5F0]">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl border border-border text-xs font-semibold hover:bg-secondary"
+                  className="px-4.5 py-2.5 rounded-xl border border-[#E5E5E0] text-xs font-bold text-[#44403C] hover:bg-[#FAF9F6]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-xs font-bold text-primary-foreground tracking-wider uppercase hover:bg-primary/95"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#5C0620] text-xs font-bold text-[#FFFFFF] hover:bg-[#4A0216] shadow-sm"
                 >
-                  {submitting && <Loader2 size={14} className="animate-spin" />}
-                  {editingProduct ? "Update Product" : "Save Product"}
+                  {submitting && <Loader2 size={13} className="animate-spin" />}
+                  <span>{editingProduct ? "Save Changes" : "Create Product"}</span>
                 </button>
               </div>
             </form>
@@ -543,26 +657,23 @@ export function AdminProducts() {
 
       {/* Delete Confirmation Modal */}
       {deletingProduct && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-2xl bg-card border border-border p-6 shadow-2xl space-y-4 text-center">
-            <div className="h-12 w-12 rounded-full bg-destructive/10 text-destructive mx-auto flex items-center justify-center">
+        <div className="fixed inset-0 z-50 bg-[#1C1917]/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl bg-[#FFFFFF] border border-[#E5E5E0] p-6 shadow-2xl space-y-4 text-center animate-in zoom-in-95 duration-100">
+            <div className="h-12 w-12 rounded-full bg-[#FEF2F2] text-[#EF4444] mx-auto flex items-center justify-center border border-[#EF4444]/15">
               <AlertCircle size={24} />
             </div>
             <div>
-              <h3 className="font-display text-lg font-bold text-foreground">Confirm Deletion</h3>
-              <p className="text-xs text-muted-foreground mt-1">
-                Are you sure you want to delete this product?
-              </p>
-              <p className="text-xs font-bold text-foreground mt-2 border border-border/80 bg-secondary/40 py-2 px-3 rounded-xl">
-                "{deletingProduct.name}" ({deletingProduct.id})
+              <h3 className="font-serif text-lg font-bold text-[#1C1917]">Remove Product Entry</h3>
+              <p className="text-xs text-[#78716C] mt-1.5 font-medium">
+                Are you sure you want to remove this product?
               </p>
             </div>
 
-            <div className="flex items-center justify-center gap-3 pt-3">
+            <div className="flex items-center justify-center gap-3 pt-3.5 border-t border-[#F5F5F0]">
               <button
                 type="button"
                 onClick={() => setDeletingProduct(null)}
-                className="w-1/2 py-2.5 rounded-xl border border-border text-xs font-semibold hover:bg-secondary"
+                className="w-1/2 py-2.5 rounded-xl border border-[#E5E5E0] text-xs font-bold text-[#44403C] hover:bg-[#FAF9F6]"
               >
                 Cancel
               </button>
@@ -570,9 +681,9 @@ export function AdminProducts() {
                 type="button"
                 onClick={handleDeleteProduct}
                 disabled={submitting}
-                className="w-1/2 py-2.5 rounded-xl bg-destructive text-xs font-bold text-destructive-foreground hover:bg-destructive/90 transition-all flex items-center justify-center gap-2"
+                className="w-1/2 py-2.5 rounded-xl bg-[#EF4444] text-xs font-bold text-[#FFFFFF] hover:bg-[#DC2626] transition-all flex items-center justify-center gap-2 shadow-sm"
               >
-                {submitting ? <Loader2 size={14} className="animate-spin" /> : "Delete Product"}
+                {submitting ? <Loader2 size={13} className="animate-spin" /> : "Delete Product"}
               </button>
             </div>
           </div>

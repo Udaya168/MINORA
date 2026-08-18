@@ -98,7 +98,7 @@ const SUB_CATEGORIES: Record<string, { label: string; slug: string }[]> = {
   ],
 };
 
-export function Header() {
+export function Header({ isLanding = true, showCategoryNav = true }: { isLanding?: boolean; showCategoryNav?: boolean }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
@@ -179,21 +179,23 @@ export function Header() {
   return (
     <>
       {/* 1. TOP ANNOUNCEMENT BAR */}
-      <div className="bg-[#1C1818] text-white py-2 text-[11px] font-medium tracking-[0.2em] text-center uppercase border-b border-white/10 transition-all">
-        <div className="mx-auto max-w-[1400px] px-4 flex items-center justify-between">
-          <div className="hidden md:block w-1/4 text-left text-[10px] text-white/60">
-            MINORA ONLINE CONCIERGE
-          </div>
-          <div className="w-full md:w-1/2 text-center animate-fade-in" key={announcementIdx}>
-            {announcements[announcementIdx]}
-          </div>
-          <div className="hidden md:flex w-1/4 justify-end gap-4 text-[10px] text-white/70 tracking-widest">
-            <Link to="/sell" className="hover:text-white transition-colors">BECOME A SELLER</Link>
-            <span>•</span>
-            <Link to="/help" className="hover:text-white transition-colors">HELP</Link>
+      {isLanding && (
+        <div className="bg-[#1C1818] text-white py-2 text-[11px] font-medium tracking-[0.2em] text-center uppercase border-b border-white/10 transition-all">
+          <div className="mx-auto max-w-[1400px] px-4 flex items-center justify-between">
+            <div className="hidden md:block w-1/4 text-left text-[10px] text-white/60">
+              MINORA ONLINE CONCIERGE
+            </div>
+            <div className="w-full md:w-1/2 text-center animate-fade-in" key={announcementIdx}>
+              {announcements[announcementIdx]}
+            </div>
+            <div className="hidden md:flex w-1/4 justify-end gap-4 text-[10px] text-white/70 tracking-widest">
+              <Link to="/sell" className="hover:text-white transition-colors">BECOME A SELLER</Link>
+              <span>•</span>
+              <Link to="/help" className="hover:text-white transition-colors">HELP</Link>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* 2. MAIN HEADER (Sticky Container) */}
       <header className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-border transition-all">
@@ -346,6 +348,7 @@ export function Header() {
           </div>
 
           {/* Desktop Category Nav & Mega Menus */}
+          {showCategoryNav && (
           <nav aria-label="Categories" className="relative hidden border-t border-border lg:block">
             <ul className="flex items-center justify-center gap-1 py-1">
               {NAV_LINKS.map((c) => (
@@ -434,6 +437,7 @@ export function Header() {
               ))}
             </ul>
           </nav>
+          )}
         </div>
       </header>
 
@@ -520,6 +524,7 @@ export function Header() {
                     <li>
                       <Link
                         to="/"
+                        replace={true}
                         onClick={() => setMenuOpen(false)}
                         className="flex items-center min-h-[48px] py-3 text-xs font-bold tracking-[0.2em] uppercase text-[#1C1818] hover:text-primary transition-colors"
                       >
@@ -667,4 +672,16 @@ export function Header() {
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
     </>
   );
+}
+
+export function LandingHeader() {
+  return <Header isLanding={true} showCategoryNav={true} />;
+}
+
+export function UserAppHeader() {
+  return <Header isLanding={false} showCategoryNav={true} />;
+}
+
+export function AuthHeader() {
+  return <Header isLanding={false} showCategoryNav={false} />;
 }

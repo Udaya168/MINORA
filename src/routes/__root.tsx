@@ -3,6 +3,7 @@ import {
   Outlet,
   Link,
   createRootRouteWithContext,
+  useLocation,
   useRouter,
   HeadContent,
   Scripts,
@@ -13,12 +14,10 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { StoreProvider } from "@/lib/store";
-import { Header } from "@/components/site/Header";
 import { CartDrawer } from "@/components/site/CartDrawer";
-import { Footer } from "@/components/site/Footer";
-import { BackToTop } from "@/components/site/BackToTop";
 import { Toaster } from "@/components/ui/sonner";
 import { LegalPolicyModal } from "@/components/site/LegalPolicyModal";
+import { useNavigationHistoryTracker } from "@/hooks/use-navigation-history";
 
 function NotFoundComponent() {
   return (
@@ -120,22 +119,29 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
+/**
+ * Root layout — MINIMAL SHELL ONLY.
+ *
+ * NO Header, Footer, or BackToTop rendered here.
+ * Each route owns its own layout:
+ *  - Landing page "/"   → renders LandingHeader + content + Footer inside index.tsx
+ *  - Storefront pages   → wrapped in <StorefrontLayout> (category nav + footer)
+ *  - Auth/utility pages  → wrapped in <UserPortalLayout> (minimal header, no footer)
+ *  - Admin pages         → AdminPortal (already self-contained)
+ */
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith("/admin");
+  useNavigationHistoryTracker();
 
   return (
     <QueryClientProvider client={queryClient}>
       <HeadContent />
       <StoreProvider>
         <div className="flex min-h-screen flex-col">
-          <Header />
-          <main className="flex-1 pb-0">
-            {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-            <Outlet />
-          </main>
-          <Footer />
-          <BackToTop />
-          <CartDrawer />
+          <Outlet />
+          {!isAdminRoute && <CartDrawer />}
           <LegalPolicyModal />
           <Toaster position="bottom-center" />
           <ScrollRestoration />

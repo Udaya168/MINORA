@@ -17,7 +17,7 @@ export function Logo({ className = "h-8" }: { className?: string }) {
   }, []);
 
   return (
-    <Link to="/" aria-label="MINORA home" className="inline-flex items-center justify-center py-1">
+    <Link to="/" replace={true} aria-label="MINORA home" className="inline-flex items-center justify-center py-1">
       {imageValid === true ? (
         <img
           src={logo.url}

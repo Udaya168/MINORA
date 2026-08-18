@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Breadcrumb } from "@/components/site/Breadcrumb";
 import { ProductGrid } from "@/components/site/ProductGrid";
 import { POPULAR_SEARCHES, searchProducts } from "@/data/products";
 import { Link } from "@tanstack/react-router";
+import { UserPortalLayout } from "@/components/site/UserPortalLayout";
 
 export const Route = createFileRoute("/search")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -24,9 +24,9 @@ function SearchPage() {
   const results = searchProducts(q);
 
   return (
-    <div className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5">
-      <Breadcrumb items={[{ label: "Search" }]} />
-      <h1 className="mt-3 font-display text-2xl">
+    <UserPortalLayout>
+    <div className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6">
+      <h1 className="font-display text-2xl">
         {q ? <>Results for “{q}”</> : "Search MINORA"}
       </h1>
       <p className="text-sm text-muted-foreground">{results.length} products</p>
@@ -51,5 +51,6 @@ function SearchPage() {
         </div>
       )}
     </div>
+    </UserPortalLayout>
   );
 }

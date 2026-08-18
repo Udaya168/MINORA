@@ -5,6 +5,7 @@ import { getProduct } from "@/data/products";
 import { inr } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { OrderSummary } from "@/components/site/OrderSummary";
+import { UserPortalLayout } from "@/components/site/UserPortalLayout";
 
 export const Route = createFileRoute("/cart")({
   head: () => ({
@@ -41,6 +42,7 @@ function CartPage() {
   }
 
   return (
+    <UserPortalLayout>
     <div className="mx-auto max-w-[1400px] px-3 py-5 sm:px-5">
       <h1 className="font-display text-2xl">Shopping Bag</h1>
       <div className="mt-5 gap-6 lg:flex lg:items-start">
@@ -106,5 +108,6 @@ function CartPage() {
         </div>
       </div>
     </div>
+    </UserPortalLayout>
   );
 }

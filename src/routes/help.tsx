@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PackageSearch, RotateCcw, CreditCard, Ruler, MessageCircle, Phone } from "lucide-react";
+import { UserPortalLayout } from "@/components/site/UserPortalLayout";
 
 export const Route = createFileRoute("/help")({
   head: () => ({
@@ -30,6 +31,7 @@ const FAQS = [
 
 function HelpPage() {
   return (
+    <UserPortalLayout>
     <div className="mx-auto max-w-[1000px] px-4 py-8">
       <h1 className="font-display text-3xl">Help Centre</h1>
       <p className="mt-1 text-sm text-muted-foreground">We're here 7 days a week, 9 AM to 9 PM IST.</p>
@@ -71,5 +73,6 @@ function HelpPage() {
         Have questions about an ongoing order? Reach out to support via chat or phone anytime.
       </p>
     </div>
+    </UserPortalLayout>
   );
 }

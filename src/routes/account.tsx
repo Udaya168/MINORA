@@ -6,6 +6,7 @@ import { inr } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
+import { UserPortalLayout } from "@/components/site/UserPortalLayout";
 
 const accountSearchSchema = z.object({
   tab: z.string().optional(),
@@ -85,6 +86,7 @@ function AccountPage() {
   const initialLetter = (fullName || user?.email || "A").charAt(0).toUpperCase();
 
   return (
+    <UserPortalLayout>
     <div className="mx-auto max-w-[1200px] px-3 py-5 sm:px-5">
       <h1 className="font-display text-2xl">My Account</h1>
 
@@ -305,5 +307,6 @@ function AccountPage() {
         </section>
       </div>
     </div>
+    </UserPortalLayout>
   );
 }

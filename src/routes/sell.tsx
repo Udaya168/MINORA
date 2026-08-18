@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ChevronDown, Plus, Minus, ArrowRight, ShieldCheck, Truck, BarChart3, Clock, CheckCircle2, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import sellerHeroImg from "@/assets/p-coord.jpg";
+import { UserPortalLayout } from "@/components/site/UserPortalLayout";
 
 export const Route = createFileRoute("/sell")({
   head: () => ({
@@ -102,6 +103,7 @@ function SellPage() {
   };
 
   return (
+    <UserPortalLayout>
     <div className="bg-background min-h-screen">
       {/* 1. SELLER HERO SECTION (Split Layout) */}
       <section className="relative overflow-hidden border-b border-border py-12 md:py-20 lg:py-24">
@@ -424,5 +426,6 @@ function SellPage() {
         </div>
       </section>
     </div>
+    </UserPortalLayout>
   );
 }

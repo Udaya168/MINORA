@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { SlidersHorizontal, ArrowDownWideNarrow, X } from "lucide-react";
-import { Breadcrumb } from "@/components/site/Breadcrumb";
 import { ProductGrid } from "@/components/site/ProductGrid";
 import { resolveCollection, type Product } from "@/data/products";
+import { StorefrontLayout } from "@/components/site/StorefrontLayout";
 
 type Search = {
   sort?: string | undefined;
@@ -218,8 +218,8 @@ function Listing() {
   );
 
   return (
-    <div className="mx-auto max-w-[1400px] px-3 py-4 sm:px-5">
-      <Breadcrumb items={[{ label: collection.title }]} />
+    <StorefrontLayout>
+    <div className="mx-auto max-w-[1400px] px-3 sm:px-5 pt-2">
 
       <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -290,5 +290,6 @@ function Listing() {
         </div>
       )}
     </div>
+    </StorefrontLayout>
   );
 }
