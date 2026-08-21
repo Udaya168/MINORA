@@ -197,12 +197,12 @@ function ProductPage() {
 
   return (
     <StorefrontLayout>
-    <div className="mx-auto max-w-[1400px] px-0 sm:px-5 py-0 sm:py-6">
+    <div className="mx-auto max-w-[1400px] px-0 sm:px-6 lg:px-5 py-0 sm:py-6 overflow-x-hidden">
 
-      <div className="mt-8 gap-12 lg:flex">
+      <div className="mt-4 sm:mt-8 gap-12 lg:flex">
         {/* Left Column: Single Product Image */}
-        <div className="lg:w-[55%] relative select-none">
-          <div className="w-full aspect-[3/4] border border-border bg-secondary/20 relative overflow-hidden">
+        <div className="lg:w-[55%] relative select-none w-full max-w-full">
+          <div className="w-full aspect-[3/4] border-y sm:border border-border bg-secondary/20 relative overflow-hidden">
             <img
               src={product.images[0]}
               alt={product.name}
@@ -215,14 +215,16 @@ function ProductPage() {
         </div>
 
         {/* Right Column: Dynamic Info Panel */}
-        <div className="mt-8 min-w-0 flex-1 lg:mt-0 lg:sticky lg:top-28 lg:h-fit">
+        <div className="mt-6 sm:mt-8 min-w-0 flex-1 lg:mt-0 lg:sticky lg:top-28 lg:h-fit px-4 min-[390px]:px-5 sm:px-0 max-w-full box-border">
           <div className="space-y-4 pb-6 border-b border-border">
             <span className="text-[10px] font-bold tracking-[0.2em] text-primary uppercase block">
               {product.categoryLabel}
             </span>
-            <h1 className="font-display text-3xl tracking-wide leading-tight text-foreground">{product.name}</h1>
+            <h1 className="font-display text-[24px] min-[360px]:text-[26px] min-[390px]:text-[28px] sm:text-3xl tracking-wide leading-tight text-foreground break-words">
+              {product.name}
+            </h1>
             
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <Stars rating={product.rating} size={11} />
               <span className="text-xs text-muted-foreground tracking-wider font-light">
                 {product.reviewCount.toLocaleString("en-IN")} CURATED REVIEWS
@@ -231,7 +233,7 @@ function ProductPage() {
           </div>
 
           <div className="py-6 border-b border-border space-y-1">
-            <div className="flex items-baseline gap-3">
+            <div className="flex flex-wrap items-baseline gap-3">
               <span className="text-2xl font-bold tracking-wide">{inr(product.price)}</span>
               <span className="text-sm text-muted-foreground line-through font-light">{inr(product.originalPrice)}</span>
               <span className="text-xs font-bold text-success tracking-wider">{product.discount}% OFF</span>
@@ -307,7 +309,7 @@ function ProductPage() {
           </div>
 
           {/* Primary CTA controls */}
-          <div className="py-6 border-b border-border flex flex-wrap gap-3">
+          <div className="py-6 border-b border-border flex flex-wrap gap-3 w-full">
             <button
               type="button"
               onClick={add}
@@ -391,10 +393,10 @@ function ProductPage() {
       </div>
 
       {/* Ratings & Reviews Section */}
-      <section aria-label="Ratings and reviews" className="mt-20 border-t border-border pt-16">
-        <h2 className="font-display text-2xl sm:text-3xl tracking-wide">Customer Reviews</h2>
-        <div className="mt-8 gap-12 md:flex">
-          <div className="md:w-72 space-y-4">
+      <section aria-label="Ratings and reviews" className="mt-20 border-t border-border pt-16 px-4 min-[390px]:px-5 sm:px-0 max-w-full box-border">
+        <h2 className="font-display text-2xl sm:text-3xl tracking-wide break-words">Customer Reviews</h2>
+        <div className="mt-8 gap-12 md:flex max-w-full">
+          <div className="md:w-72 space-y-4 max-w-full">
             <div className="flex items-end gap-2">
               <span className="font-display text-5xl font-light">{product.rating.toFixed(1)}</span>
               <span className="pb-1.5 text-xs tracking-wider text-muted-foreground uppercase">OUT OF 5 STARS</span>
@@ -435,8 +437,8 @@ function ProductPage() {
 
       {/* Similar Products */}
       {similar.length > 0 && (
-        <section aria-label="Similar products" className="mt-20 border-t border-border pt-16">
-          <div className="flex items-end justify-between border-b border-border pb-3">
+        <section aria-label="Similar products" className="mt-20 border-t border-border pt-16 px-4 min-[390px]:px-5 sm:px-0 max-w-full box-border">
+          <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-3">
             <h2 className="font-display text-2xl sm:text-3xl tracking-wide">You May Also Like</h2>
             <Link to="/c/$slug" params={{ slug: product.category }} className="text-xs font-bold tracking-widest text-primary uppercase hover:underline">
               View all curations &rarr;
@@ -450,11 +452,11 @@ function ProductPage() {
 
       {/* 9. Sticky Purchase Bar */}
       <div
-        className={`fixed bottom-0 inset-x-0 z-40 border-t border-border bg-background/95 backdrop-blur-md py-3 px-5 transition-all duration-500 transform ${
+        className={`fixed bottom-0 inset-x-0 z-40 border-t border-border bg-background/95 backdrop-blur-md py-3 px-4 min-[390px]:px-5 sm:px-6 lg:px-5 transition-all duration-500 transform ${
           showStickyBar ? "translate-y-0" : "translate-y-full"
         }`}
       >
-        <div className="mx-auto max-w-[1400px] flex items-center justify-between gap-4">
+        <div className="mx-auto max-w-[1400px] flex items-center justify-between gap-4 w-full">
           <div className="min-w-0 hidden sm:block">
             <span className="block text-[9px] font-bold tracking-wider text-muted-foreground uppercase">{product.categoryLabel}</span>
             <span className="block text-xs font-semibold text-foreground truncate max-w-xs">{product.name}</span>

@@ -48,10 +48,11 @@ export function ProductCard({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <CardLink
-        product={product}
-        className="relative block aspect-[3/4] overflow-hidden bg-secondary/30"
-      >
+      <div className="relative overflow-hidden">
+        <CardLink
+          product={product}
+          className="relative block aspect-[3/4] bg-secondary/30"
+        >
         {/* Hover Crossfade Images */}
         <img
           src={product.images[0]}
@@ -82,8 +83,10 @@ export function ProductCard({
           </span>
         )}
 
+        </CardLink>
+
         {/* Quick Add Overlay on Hover */}
-        <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-background/80 via-background/20 to-transparent translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
+        <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-background/80 via-background/20 to-transparent translate-y-2 opacity-0 pointer-events-none group-hover:translate-y-0 group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-300">
           <button
             type="button"
             onClick={handleQuickAdd}
@@ -92,7 +95,7 @@ export function ProductCard({
             <Plus size={12} /> QUICK ADD
           </button>
         </div>
-      </CardLink>
+      </div>
 
       {/* Wishlist Button */}
       <button

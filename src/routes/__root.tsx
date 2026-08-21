@@ -7,7 +7,6 @@ import {
   useRouter,
   HeadContent,
   Scripts,
-  ScrollRestoration,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
@@ -144,7 +143,6 @@ function RootComponent() {
           {!isAdminRoute && <CartDrawer />}
           <LegalPolicyModal />
           <Toaster position="bottom-center" />
-          <ScrollRestoration />
         </div>
       </StoreProvider>
     </QueryClientProvider>

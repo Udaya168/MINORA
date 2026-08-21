@@ -43,7 +43,7 @@ function CartPage() {
 
   return (
     <UserPortalLayout>
-    <div className="mx-auto max-w-[1400px] px-3 py-5 sm:px-5">
+    <div className="mx-auto max-w-[1400px] px-4 min-[390px]:px-5 py-5 sm:px-6 lg:px-5 box-border">
       <h1 className="font-display text-2xl">Shopping Bag</h1>
       <div className="mt-5 gap-6 lg:flex lg:items-start">
         <ul className="min-w-0 flex-1 space-y-3">

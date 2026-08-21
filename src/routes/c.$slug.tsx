@@ -219,7 +219,7 @@ function Listing() {
 
   return (
     <StorefrontLayout>
-    <div className="mx-auto max-w-[1400px] px-3 sm:px-5 pt-2">
+    <div className="mx-auto max-w-[1400px] px-4 min-[390px]:px-5 pt-2 box-border">
 
       <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -244,16 +244,19 @@ function Listing() {
         <aside className="hidden w-64 shrink-0 lg:block">
           <div className="sticky top-36">{Filters}</div>
         </aside>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 pb-24 lg:pb-0">
           <ProductGrid products={products} />
         </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-14 z-40 grid grid-cols-2 border-t border-border bg-card lg:hidden">
-        <button type="button" onClick={() => setFiltersOpen(true)} className="flex items-center justify-center gap-2 py-3 text-sm font-medium">
+      <div 
+        className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-2 border-t border-border bg-card lg:hidden shadow-[0_-4px_20px_rgba(0,0,0,0.05)]"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <button type="button" onClick={() => setFiltersOpen(true)} className="flex h-16 items-center justify-center gap-2 text-sm font-medium">
           <SlidersHorizontal size={16} /> Filter{activeCount ? ` (${activeCount})` : ""}
         </button>
-        <label className="flex items-center justify-center gap-2 border-l border-border py-3 text-sm font-medium">
+        <label className="flex h-16 items-center justify-center gap-2 border-l border-border text-sm font-medium">
           <ArrowDownWideNarrow size={16} />
           <select
             value={search.sort ?? "popular"}
