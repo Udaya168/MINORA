@@ -200,61 +200,19 @@ function ProductPage() {
     <div className="mx-auto max-w-[1400px] px-0 sm:px-5 py-0 sm:py-6">
 
       <div className="mt-8 gap-12 lg:flex">
-        {/* Left Column: Mobile Gallery (Swipe) vs Desktop Gallery (Stacked Grid) */}
-        {isMobile ? (
-          <div className="lg:w-[55%] relative select-none">
-            <div
-              className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar w-full aspect-[3/4] border border-border"
-              style={{ scrollbarWidth: "none" }}
-              onScroll={(e) => {
-                const el = e.currentTarget;
-                const idx = Math.round(el.scrollLeft / el.clientWidth);
-                setMobileActiveIdx(idx);
-              }}
-            >
-              {product.images.map((img, i) => (
-                <div key={i} className="w-full h-full shrink-0 snap-start snap-always relative">
-                  <img
-                    src={img}
-                    alt={`${product.name} view ${i + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              ))}
-            </div>
-            {/* Dots */}
-            <div className="flex justify-center gap-1.5 mt-3">
-              {product.images.map((_, i) => (
-                <div
-                  key={i}
-                  className={`h-1.5 w-1.5 rounded-full transition-all duration-300 ${
-                    mobileActiveIdx === i ? "bg-primary w-3.5" : "bg-muted-foreground/30"
-                  }`}
-                />
-              ))}
-            </div>
+        {/* Left Column: Single Product Image */}
+        <div className="lg:w-[55%] relative select-none">
+          <div className="w-full aspect-[3/4] border border-border bg-secondary/20 relative overflow-hidden">
+            <img
+              src={product.images[0]}
+              alt={product.name}
+              width={768}
+              height={1024}
+              onError={(e) => { e.currentTarget.src = `https://placehold.co/768x1024/f1f5f9/64748b?text=${encodeURIComponent(product.name)}` }}
+              className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+            />
           </div>
-        ) : (
-          <div className="lg:w-[55%] space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              {product.images.map((img, i) => (
-                <div
-                  key={i}
-                  className="relative overflow-hidden bg-secondary/20 border border-border"
-                  onClick={() => setActive(i)}
-                >
-                  <img
-                    src={img}
-                    alt={`${product.name} view ${i + 1}`}
-                    width={768}
-                    height={1024}
-                    className="aspect-[3/4] w-full object-cover transition-transform duration-500 hover:scale-105"
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        </div>
 
         {/* Right Column: Dynamic Info Panel */}
         <div className="mt-8 min-w-0 flex-1 lg:mt-0 lg:sticky lg:top-28 lg:h-fit">

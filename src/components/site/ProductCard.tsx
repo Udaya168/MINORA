@@ -7,6 +7,21 @@ import { inr } from "@/lib/format";
 import { useStore } from "@/lib/store";
 import { Stars } from "./Stars";
 
+const CardLink = ({ product, className, children }: { product: Product; className?: string; children: React.ReactNode }) => {
+  if (product.sourceUrl) {
+    return (
+      <a href={product.sourceUrl} target="_blank" rel="noopener noreferrer" className={className}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <Link to="/product/$id" params={{ id: product.id }} className={className}>
+      {children}
+    </Link>
+  );
+};
+
 export function ProductCard({
   product,
   onQuickView,
@@ -33,9 +48,8 @@ export function ProductCard({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <Link
-        to="/product/$id"
-        params={{ id: product.id }}
+      <CardLink
+        product={product}
         className="relative block aspect-[3/4] overflow-hidden bg-secondary/30"
       >
         {/* Hover Crossfade Images */}
@@ -45,6 +59,7 @@ export function ProductCard({
           loading="lazy"
           width={768}
           height={1024}
+          onError={(e) => { e.currentTarget.src = `https://placehold.co/768x1024/f1f5f9/64748b?text=${encodeURIComponent(product.name)}` }}
           className={`h-full w-full object-cover object-top transition-transform duration-700 ease-out ${
             hovered ? "scale-105 opacity-0" : "scale-100 opacity-100"
           }`}
@@ -55,6 +70,7 @@ export function ProductCard({
           loading="lazy"
           width={768}
           height={1024}
+          onError={(e) => { e.currentTarget.src = `https://placehold.co/768x1024/f1f5f9/64748b?text=${encodeURIComponent(product.name)}` }}
           className={`absolute inset-0 h-full w-full object-cover object-top transition-all duration-700 ease-out ${
             hovered ? "scale-103 opacity-100" : "scale-95 opacity-0"
           }`}
@@ -76,7 +92,7 @@ export function ProductCard({
             <Plus size={12} /> QUICK ADD
           </button>
         </div>
-      </Link>
+      </CardLink>
 
       {/* Wishlist Button */}
       <button
@@ -110,9 +126,9 @@ export function ProductCard({
         </div>
 
         <h3 className="text-xs font-medium text-foreground tracking-wide line-clamp-1">
-          <Link to="/product/$id" params={{ id: product.id }} className="hover:text-primary transition-colors">
+          <CardLink product={product} className="hover:text-primary transition-colors">
             {product.name}
-          </Link>
+          </CardLink>
         </h3>
 
         <div className="flex items-baseline gap-2 pt-0.5">
