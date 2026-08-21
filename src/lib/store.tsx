@@ -18,8 +18,15 @@ export type CartLine = { id: string; size: string; qty: number };
 export type Profile = {
   id: string;
   full_name: string | null;
-  role: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
   email?: string | null;
+  phone?: string | null;
+  phone_number?: string | null;
+  date_of_birth?: string | null;
+  dob?: string | null;
+  gender?: string | null;
+  role: string | null;
   [key: string]: any;
 };
 

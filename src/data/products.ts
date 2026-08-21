@@ -35,7 +35,7 @@ export type Product = {
   inStock: boolean;
   createdDaysAgo: number;
   popularity: number;
-  sourceUrl?: string;
+  sourceUrl?: string | undefined;
 };
 
 export const CATEGORY_IMAGES: Record<string, string> = {
