@@ -69,7 +69,7 @@ function Checkout() {
   const [delivery, setDelivery] = useState("standard");
   const [payment, setPayment] = useState("upi");
   const [orderId, setOrderId] = useState("");
-  const { cart, totals, clearCart } = useStore();
+  const { cart, totals, clearCart, appliedCoupon, removeCoupon } = useStore();
   const navigate = useNavigate();
 
   // Saved Addresses state
@@ -344,6 +344,8 @@ function Checkout() {
       let rpcRes: any = null;
       let rpcErr: any = null;
 
+      const totalCombinedDiscount = totals.productDiscount + totals.couponDiscount;
+
       const primaryCall = await supabase.rpc("create_order_and_deduct_inventory", {
         p_customer_name: customerName,
         p_customer_email: currentSession.user.email || "",
@@ -353,7 +355,7 @@ function Checkout() {
         p_state: address.state,
         p_pincode: address.pincode,
         p_subtotal: totals.mrp,
-        p_discount: totals.discount,
+        p_discount: totalCombinedDiscount,
         p_shipping: totals.delivery,
         p_total: totals.total,
         p_items: itemsPayload,
@@ -374,7 +376,7 @@ function Checkout() {
           p_state: address.state,
           p_pincode: address.pincode,
           p_subtotal: totals.mrp,
-          p_discount: totals.discount,
+          p_discount: totalCombinedDiscount,
           p_shipping: totals.delivery,
           p_total: totals.total,
           p_items: itemsPayload,
@@ -401,6 +403,7 @@ function Checkout() {
 
       // 6. SUCCESS: ONLY reachable when RPC transaction fully completes & commits
       setOrderId(rpcRes.order_id);
+      removeCoupon();
       clearCart();
       setStep(3);
       toast.success("Order placed successfully!");
@@ -763,15 +766,21 @@ function Checkout() {
                   <dd>{inr(totals.mrp)}</dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Discount</dt>
-                  <dd className="text-success">− {inr(totals.discount)}</dd>
+                  <dt className="text-muted-foreground">Product Discount</dt>
+                  <dd className="text-success">− {inr(totals.productDiscount)}</dd>
                 </div>
+                {appliedCoupon && totals.couponDiscount > 0 && (
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Coupon Discount ({appliedCoupon.code})</dt>
+                    <dd className="text-success">− {inr(totals.couponDiscount)}</dd>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <dt className="text-muted-foreground">Delivery</dt>
                   <dd>{totals.delivery === 0 ? "FREE" : inr(totals.delivery)}</dd>
                 </div>
                 <div className="flex justify-between border-t border-border pt-2 text-base font-semibold">
-                  <dt>Total</dt>
+                  <dt>Total Amount</dt>
                   <dd>{inr(totals.total)}</dd>
                 </div>
               </dl>

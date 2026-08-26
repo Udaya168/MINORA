@@ -30,11 +30,19 @@ export type Profile = {
   [key: string]: any;
 };
 
+export type AppliedCoupon = {
+  code: string;
+  discountAmount: number;
+  discountType?: string;
+  isFreeShipping?: boolean;
+};
+
 type StoreValue = {
   cart: CartLine[];
   wishlist: string[];
   recent: string[];
   hydrated: boolean;
+  appliedCoupon: AppliedCoupon | null;
   addToCart: (id: string, size: string, qty?: number) => void;
   removeFromCart: (id: string, size: string) => void;
   setQty: (id: string, size: string, qty: number) => void;
@@ -43,8 +51,19 @@ type StoreValue = {
   removeFromWishlist: (id: string) => void;
   isWished: (id: string) => boolean;
   pushRecent: (term: string) => void;
+  applyCouponState: (coupon: AppliedCoupon) => void;
+  removeCoupon: () => void;
   cartCount: number;
-  totals: { items: number; mrp: number; discount: number; delivery: number; total: number };
+  totals: {
+    items: number;
+    mrp: number;
+    productDiscount: number;
+    discount: number;
+    payable: number;
+    couponDiscount: number;
+    delivery: number;
+    total: number;
+  };
   legalModalType: "terms" | "privacy" | "refund" | null;
   openLegalModal: (type: "terms" | "privacy" | "refund") => void;
   closeLegalModal: () => void;
@@ -76,10 +95,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [recent, setRecent] = useState<string[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
+
   useEffect(() => {
     setCart(read<CartLine[]>("minora.cart", []));
     setWishlist(read<string[]>("minora.wishlist", []));
     setRecent(read<string[]>("minora.recent", []));
+    setAppliedCoupon(read<AppliedCoupon | null>("minora.appliedCoupon", null));
     setHydrated(true);
   }, []);
 
@@ -93,6 +115,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (hydrated) localStorage.setItem("minora.recent", JSON.stringify(recent));
   }, [recent, hydrated]);
+  useEffect(() => {
+    if (hydrated) {
+      if (appliedCoupon) {
+        localStorage.setItem("minora.appliedCoupon", JSON.stringify(appliedCoupon));
+      } else {
+        localStorage.removeItem("minora.appliedCoupon");
+      }
+    }
+  }, [appliedCoupon, hydrated]);
 
   const addToCart = useCallback((id: string, size: string, qty = 1) => {
     setCart((prev) => {
@@ -140,6 +171,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setRecent((prev) => [t, ...prev.filter((r) => r !== t)].slice(0, 6));
   }, []);
 
+  const removeCoupon = useCallback(() => {
+    setAppliedCoupon(null);
+  }, []);
+
+  const applyCouponState = useCallback((coupon: AppliedCoupon) => {
+    setAppliedCoupon(coupon);
+  }, []);
+
   const totals = useMemo(() => {
     let mrp = 0;
     let items = 0;
@@ -151,15 +190,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       payable += p.price * line.qty;
       items += line.qty;
     }
-    const delivery = payable > 0 && payable < 499 ? 49 : 0;
+
+    const productDiscount = mrp - payable;
+    const couponDiscount = appliedCoupon && payable > 0 ? Math.min(payable, appliedCoupon.discountAmount) : 0;
+    const finalPayableItemTotal = Math.max(0, payable - couponDiscount);
+    const isFreeShip = appliedCoupon?.isFreeShipping;
+    const delivery = isFreeShip ? 0 : finalPayableItemTotal > 0 && finalPayableItemTotal < 499 ? 49 : 0;
+    const total = Math.max(0, finalPayableItemTotal + delivery);
+
     return {
       items,
       mrp,
-      discount: mrp - payable,
+      productDiscount,
+      discount: productDiscount,
+      payable,
+      couponDiscount,
       delivery,
-      total: payable + delivery,
+      total,
     };
-  }, [cart]);
+  }, [cart, appliedCoupon]);
 
   const [legalModalType, setLegalModalType] = useState<"terms" | "privacy" | "refund" | null>(null);
 
@@ -267,6 +316,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     wishlist,
     recent,
     hydrated,
+    appliedCoupon,
     addToCart,
     removeFromCart,
     setQty,
@@ -275,6 +325,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     removeFromWishlist,
     isWished: (id) => wishlist.includes(id),
     pushRecent,
+    applyCouponState,
+    removeCoupon,
     cartCount: cart.reduce((n, l) => n + l.qty, 0),
     totals,
     legalModalType,

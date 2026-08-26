@@ -11,18 +11,27 @@ export function OrderSummary({
   to?: "/checkout" | undefined;
   onCta?: (() => void) | undefined;
 }) {
-  const { totals } = useStore();
+  const { totals, appliedCoupon } = useStore();
   const navigate = useNavigate();
 
-  const rows = [
+  const rows: { label: string; value: string; good?: boolean }[] = [
     { label: `Item Total (${totals.items} items)`, value: inr(totals.mrp) },
-    { label: "Discount", value: `− ${inr(totals.discount)}`, good: true },
-    {
-      label: "Delivery",
-      value: totals.delivery === 0 ? "FREE" : inr(totals.delivery),
-      good: totals.delivery === 0,
-    },
+    { label: "Product Discount", value: `− ${inr(totals.productDiscount)}`, good: true },
   ];
+
+  if (appliedCoupon && totals.couponDiscount > 0) {
+    rows.push({
+      label: `Coupon Discount (${appliedCoupon.code})`,
+      value: `− ${inr(totals.couponDiscount)}`,
+      good: true,
+    });
+  }
+
+  rows.push({
+    label: "Delivery",
+    value: totals.delivery === 0 ? "FREE" : inr(totals.delivery),
+    good: totals.delivery === 0,
+  });
 
   return (
     <aside className="rounded-xl border border-border bg-card p-4 lg:sticky lg:top-36">
