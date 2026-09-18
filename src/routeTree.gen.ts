@@ -14,10 +14,12 @@ import { Route as AccountRouteImport } from './routes/account'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as CartRouteImport } from './routes/cart'
 import { Route as CheckoutRouteImport } from './routes/checkout'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as HelpRouteImport } from './routes/help'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SellRouteImport } from './routes/sell'
+import { Route as UpdatePasswordRouteImport } from './routes/update-password'
 import { Route as WishlistRouteImport } from './routes/wishlist'
 import { Route as CSlugRouteImport } from './routes/c.$slug'
 import { Route as ProductIdRouteImport } from './routes/product.$id'
@@ -47,6 +49,11 @@ const CheckoutRoute = CheckoutRouteImport.update({
   path: '/checkout',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HelpRoute = HelpRouteImport.update({
   id: '/help',
   path: '/help',
@@ -65,6 +72,11 @@ const SearchRoute = SearchRouteImport.update({
 const SellRoute = SellRouteImport.update({
   id: '/sell',
   path: '/sell',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UpdatePasswordRoute = UpdatePasswordRouteImport.update({
+  id: '/update-password',
+  path: '/update-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WishlistRoute = WishlistRouteImport.update({
@@ -89,10 +101,12 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/help': typeof HelpRoute
   '/login': typeof LoginRoute
   '/search': typeof SearchRoute
   '/sell': typeof SellRoute
+  '/update-password': typeof UpdatePasswordRoute
   '/wishlist': typeof WishlistRoute
   '/c/$slug': typeof CSlugRoute
   '/product/$id': typeof ProductIdRoute
@@ -103,10 +117,12 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/help': typeof HelpRoute
   '/login': typeof LoginRoute
   '/search': typeof SearchRoute
   '/sell': typeof SellRoute
+  '/update-password': typeof UpdatePasswordRoute
   '/wishlist': typeof WishlistRoute
   '/c/$slug': typeof CSlugRoute
   '/product/$id': typeof ProductIdRoute
@@ -118,10 +134,12 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/cart': typeof CartRoute
   '/checkout': typeof CheckoutRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/help': typeof HelpRoute
   '/login': typeof LoginRoute
   '/search': typeof SearchRoute
   '/sell': typeof SellRoute
+  '/update-password': typeof UpdatePasswordRoute
   '/wishlist': typeof WishlistRoute
   '/c/$slug': typeof CSlugRoute
   '/product/$id': typeof ProductIdRoute
@@ -134,10 +152,12 @@ export interface FileRouteTypes {
     | '/admin'
     | '/cart'
     | '/checkout'
+    | '/forgot-password'
     | '/help'
     | '/login'
     | '/search'
     | '/sell'
+    | '/update-password'
     | '/wishlist'
     | '/c/$slug'
     | '/product/$id'
@@ -148,10 +168,12 @@ export interface FileRouteTypes {
     | '/admin'
     | '/cart'
     | '/checkout'
+    | '/forgot-password'
     | '/help'
     | '/login'
     | '/search'
     | '/sell'
+    | '/update-password'
     | '/wishlist'
     | '/c/$slug'
     | '/product/$id'
@@ -162,10 +184,12 @@ export interface FileRouteTypes {
     | '/admin'
     | '/cart'
     | '/checkout'
+    | '/forgot-password'
     | '/help'
     | '/login'
     | '/search'
     | '/sell'
+    | '/update-password'
     | '/wishlist'
     | '/c/$slug'
     | '/product/$id'
@@ -177,10 +201,12 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   CartRoute: typeof CartRoute
   CheckoutRoute: typeof CheckoutRoute
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   HelpRoute: typeof HelpRoute
   LoginRoute: typeof LoginRoute
   SearchRoute: typeof SearchRoute
   SellRoute: typeof SellRoute
+  UpdatePasswordRoute: typeof UpdatePasswordRoute
   WishlistRoute: typeof WishlistRoute
   CSlugRoute: typeof CSlugRoute
   ProductIdRoute: typeof ProductIdRoute
@@ -223,6 +249,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CheckoutRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/help': {
       id: '/help'
       path: '/help'
@@ -249,6 +282,13 @@ declare module '@tanstack/react-router' {
       path: '/sell'
       fullPath: '/sell'
       preLoaderRoute: typeof SellRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/update-password': {
+      id: '/update-password'
+      path: '/update-password'
+      fullPath: '/update-password'
+      preLoaderRoute: typeof UpdatePasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/wishlist': {
@@ -281,10 +321,12 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   CartRoute: CartRoute,
   CheckoutRoute: CheckoutRoute,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   HelpRoute: HelpRoute,
   LoginRoute: LoginRoute,
   SearchRoute: SearchRoute,
   SellRoute: SellRoute,
+  UpdatePasswordRoute: UpdatePasswordRoute,
   WishlistRoute: WishlistRoute,
   CSlugRoute: CSlugRoute,
   ProductIdRoute: ProductIdRoute,

@@ -127,21 +127,66 @@ CREATE POLICY "Admins update notifications" ON public.notifications
 
 
 -- 7. STORAGE BUCKET SECURITY POLICIES
--- Allow public read access to product images bucket
+-- Allow public read access to product-images storage bucket
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('product-images', 'product-images', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 
+-- Public view policy for product-images bucket
 DROP POLICY IF EXISTS "Public view product images" ON storage.objects;
-DROP POLICY IF EXISTS "Admins upload product images" ON storage.objects;
-
 CREATE POLICY "Public view product images" ON storage.objects
   FOR SELECT TO public
   USING (bucket_id = 'product-images');
 
+-- Admin upload & management policies for product images
+DROP POLICY IF EXISTS "Admins upload product images" ON storage.objects;
 CREATE POLICY "Admins upload product images" ON storage.objects
   FOR INSERT TO authenticated
   WITH CHECK (
     bucket_id = 'product-images' AND
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+DROP POLICY IF EXISTS "Admins update product images" ON storage.objects;
+CREATE POLICY "Admins update product images" ON storage.objects
+  FOR UPDATE TO authenticated
+  USING (
+    bucket_id = 'product-images' AND
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+DROP POLICY IF EXISTS "Admins delete product images" ON storage.objects;
+CREATE POLICY "Admins delete product images" ON storage.objects
+  FOR DELETE TO authenticated
+  USING (
+    bucket_id = 'product-images' AND
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- Authenticated user policies for profile avatars (avatars/{userId}/...)
+DROP POLICY IF EXISTS "Users insert own avatar" ON storage.objects;
+CREATE POLICY "Users insert own avatar" ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    bucket_id = 'product-images' AND
+    (storage.foldername(name))[1] = 'avatars' AND
+    (storage.foldername(name))[2] = auth.uid()::text
+  );
+
+DROP POLICY IF EXISTS "Users update own avatar" ON storage.objects;
+CREATE POLICY "Users update own avatar" ON storage.objects
+  FOR UPDATE TO authenticated
+  USING (
+    bucket_id = 'product-images' AND
+    (storage.foldername(name))[1] = 'avatars' AND
+    (storage.foldername(name))[2] = auth.uid()::text
+  );
+
+DROP POLICY IF EXISTS "Users delete own avatar" ON storage.objects;
+CREATE POLICY "Users delete own avatar" ON storage.objects
+  FOR DELETE TO authenticated
+  USING (
+    bucket_id = 'product-images' AND
+    (storage.foldername(name))[1] = 'avatars' AND
+    (storage.foldername(name))[2] = auth.uid()::text
   );

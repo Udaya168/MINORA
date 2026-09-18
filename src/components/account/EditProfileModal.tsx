@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
-import { X, Loader2, User, Phone, Calendar, Mail } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { X, Loader2, User, Phone, Calendar, Mail, Upload, Camera, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Profile } from "@/lib/store";
+import { validateImageFile, uploadProfileAvatar, deleteProductImageByUrl } from "@/lib/storage";
 
 interface EditProfileModalProps {
   isOpen: boolean;
@@ -28,6 +29,12 @@ export function EditProfileModal({
   const [gender, setGender] = useState("Prefer not to say");
   const [isSaving, setIsSaving] = useState(false);
 
+  // Avatar upload state
+  const [selectedAvatarFile, setSelectedAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarValidationError, setAvatarValidationError] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (isOpen) {
       // Parse initial first name and last name
@@ -45,10 +52,34 @@ export function EditProfileModal({
       setPhone((profile?.["phone"] as string) || (profile?.["phone_number"] as string) || "");
       setDateOfBirth((profile?.["date_of_birth"] as string) || (profile?.["dob"] as string) || "");
       setGender((profile?.["gender"] as string) || "Prefer not to say");
+      
+      setSelectedAvatarFile(null);
+      setAvatarPreview((profile?.["avatar_url"] as string) || null);
+      setAvatarValidationError(null);
     }
   }, [isOpen, profile]);
 
   if (!isOpen) return null;
+
+  const handleAvatarFileSelect = (file: File | null) => {
+    if (!file) {
+      setSelectedAvatarFile(null);
+      setAvatarPreview((profile?.["avatar_url"] as string) || null);
+      setAvatarValidationError(null);
+      return;
+    }
+
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      setAvatarValidationError(validation.error || "Invalid image file.");
+      setSelectedAvatarFile(null);
+      setAvatarPreview((profile?.["avatar_url"] as string) || null);
+    } else {
+      setAvatarValidationError(null);
+      setSelectedAvatarFile(file);
+      setAvatarPreview(URL.createObjectURL(file));
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,16 +89,37 @@ export function EditProfileModal({
       return;
     }
 
+    if (avatarValidationError) {
+      toast.error(avatarValidationError);
+      return;
+    }
+
     setIsSaving(true);
+    let uploadedAvatarUrl: string | undefined = undefined;
     const combinedFullName = `${firstName.trim()} ${lastName.trim()}`.trim();
 
     try {
+      // 1. Upload new profile avatar if selected
+      if (selectedAvatarFile) {
+        toast.info("Uploading profile image...");
+        const uploadRes = await uploadProfileAvatar(userId, selectedAvatarFile);
+        if (!uploadRes.success || !uploadRes.publicUrl) {
+          toast.error(uploadRes.error || "Profile image upload failed. Please try again.");
+          setIsSaving(false);
+          return;
+        }
+        uploadedAvatarUrl = uploadRes.publicUrl;
+      }
+
+      const currentAvatarUrl = uploadedAvatarUrl || (profile?.["avatar_url"] as string) || null;
+
       // Primary payload with all separate fields
       const payload: Record<string, any> = {
         id: userId,
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         full_name: combinedFullName,
+        avatar_url: currentAvatarUrl,
         phone: phone.trim(),
         date_of_birth: dateOfBirth,
         gender: gender,
@@ -80,10 +132,11 @@ export function EditProfileModal({
 
       if (error) {
         console.warn("Upsert with separate name fields failed, attempting fallback:", error.message);
-        // Fallback in case table doesn't have first_name/last_name columns yet
+        // Fallback in case table doesn't have all columns
         const fallbackPayload: Record<string, any> = {
           id: userId,
           full_name: combinedFullName,
+          avatar_url: currentAvatarUrl,
           updated_at: new Date().toISOString(),
         };
         const { error: fallbackErr } = await supabase
@@ -91,15 +144,26 @@ export function EditProfileModal({
           .upsert(fallbackPayload, { onConflict: "id" });
 
         if (fallbackErr) {
+          if (uploadedAvatarUrl) {
+            await deleteProductImageByUrl(uploadedAvatarUrl);
+          }
           throw fallbackErr;
         }
       }
 
-      toast.success("Profile details updated successfully!");
+      // Clean up old avatar image from storage if replaced
+      if (uploadedAvatarUrl && profile?.["avatar_url"] && profile["avatar_url"] !== uploadedAvatarUrl) {
+        await deleteProductImageByUrl(profile["avatar_url"]);
+      }
+
+      toast.success("Profile details and image updated successfully!");
       await onProfileUpdated();
       onClose();
     } catch (err: any) {
       console.error("Error saving profile:", err);
+      if (uploadedAvatarUrl) {
+        await deleteProductImageByUrl(uploadedAvatarUrl);
+      }
       toast.error(err.message || "Failed to update profile details. Please try again.");
     } finally {
       setIsSaving(false);
@@ -133,6 +197,65 @@ export function EditProfileModal({
         </div>
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          {/* Avatar Upload Container */}
+          <div className="flex flex-col sm:flex-row items-center gap-4 p-3.5 rounded-xl border border-border bg-secondary/30">
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/jpg"
+              onChange={(e) => handleAvatarFileSelect(e.target.files?.[0] || null)}
+              className="hidden"
+            />
+            <div className="relative h-16 w-16 shrink-0 rounded-full border-2 border-primary/30 bg-primary-soft overflow-hidden grid place-items-center shadow-sm">
+              {avatarPreview ? (
+                <img src={avatarPreview} alt="Avatar preview" className="h-full w-full object-cover" />
+              ) : (
+                <span className="font-display text-primary text-xl font-bold">
+                  {(firstName || "A").charAt(0).toUpperCase()}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => avatarInputRef.current?.click()}
+                className="absolute inset-0 bg-black/40 text-white flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
+                title="Change Profile Picture"
+              >
+                <Camera size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 text-center sm:text-left space-y-1">
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-xs font-bold text-primary-foreground hover:bg-primary/95 transition-all shadow-xs"
+                >
+                  <Upload size={12} />
+                  <span>{avatarPreview ? "Change Picture" : "Upload Picture"}</span>
+                </button>
+                {selectedAvatarFile && (
+                  <button
+                    type="button"
+                    onClick={() => handleAvatarFileSelect(null)}
+                    className="px-2.5 py-1.5 rounded-md border border-border text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    Remove File
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                JPG, PNG, or WEBP up to 5 MB.
+              </p>
+              {avatarValidationError && (
+                <p className="text-[11px] font-semibold text-destructive flex items-center gap-1">
+                  <AlertCircle size={12} />
+                  <span>{avatarValidationError}</span>
+                </p>
+              )}
+            </div>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             {/* First Name */}
             <div>

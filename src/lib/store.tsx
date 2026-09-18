@@ -244,6 +244,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setProfile(data);
         return data;
       }
+
+      // If profile record does not exist in DB yet (e.g. new Google OAuth user), auto-create profile
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (currentUser && currentUser.id === userId) {
+        const meta = (currentUser.user_metadata || {}) as Record<string, any>;
+        const fullName = (meta["full_name"] as string) || (meta["name"] as string) || currentUser.email?.split("@")[0] || "User";
+        const avatarUrl = (meta["avatar_url"] as string) || (meta["picture"] as string) || null;
+
+        const newProfilePayload = {
+          id: userId,
+          full_name: fullName,
+          email: currentUser.email || null,
+          avatar_url: avatarUrl,
+          role: "user",
+          updated_at: new Date().toISOString(),
+        };
+
+        const { data: createdData } = await supabase
+          .from("profiles")
+          .upsert(newProfilePayload, { onConflict: "id" })
+          .select("*")
+          .maybeSingle();
+
+        if (createdData) {
+          console.log("[Auth] Profile auto-created for user:", createdData.id);
+          setProfile(createdData);
+          return createdData;
+        }
+      }
     } catch (e) {
       console.error("[Auth] Profiles fetch exception:", e);
     }

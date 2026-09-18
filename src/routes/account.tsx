@@ -205,9 +205,17 @@ function AccountPage() {
           {/* Sidebar */}
           <aside className="rounded-xl border border-border bg-card p-3 lg:w-64 lg:shrink-0">
             <div className="flex min-w-0 items-center gap-3 border-b border-border px-2 pb-3">
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary-soft font-display text-primary text-lg font-bold">
-                {initialLetter}
-              </span>
+              {profile?.["avatar_url"] ? (
+                <img
+                  src={profile["avatar_url"] as string}
+                  alt={fullName || "User"}
+                  className="h-11 w-11 shrink-0 rounded-full object-cover border border-primary/20 shadow-xs"
+                />
+              ) : (
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-primary-soft font-display text-primary text-lg font-bold">
+                  {initialLetter}
+                </span>
+              )}
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold">{fullName || "User"}</span>
                 <span className="block truncate text-xs text-muted-foreground">{user?.email}</span>
@@ -328,13 +336,25 @@ function AccountPage() {
                                   <Clock size={12} /> Processing
                                 </span>
                               )}
-                              {statusKey === "cancelled" && (
+                              {statusKey === "accepted" && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/10 text-purple-500">
+                                  <CheckCircle2 size={12} /> Accepted
+                                </span>
+                              )}
+                              {(statusKey === "rejected" || statusKey === "cancelled") && (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-500">
-                                  <XCircle size={12} /> Cancelled
+                                  <XCircle size={12} /> Order Rejected
                                 </span>
                               )}
                             </div>
                           </div>
+
+                          {(statusKey === "rejected" || statusKey === "cancelled") && (o.rejection_reason_text || o.rejection_reason) && (
+                            <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 p-2.5 text-xs text-rose-700">
+                              <span className="font-bold block text-[10px] uppercase tracking-wider mb-0.5">Reason for Rejection:</span>
+                              <p>{o.rejection_reason_text || o.rejection_reason}</p>
+                            </div>
+                          )}
 
                           <div className="space-y-2">
                             {itemsList.length > 0 ? (
@@ -380,9 +400,17 @@ function AccountPage() {
               <div className="rounded-xl border border-border bg-card p-5 space-y-6">
                 <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
                   <div className="flex items-center gap-4">
-                    <span className="grid h-16 w-16 place-items-center rounded-full bg-primary-soft font-display text-primary text-2xl font-bold border border-primary/20 shadow-sm">
-                      {initialLetter}
-                    </span>
+                    {profile?.["avatar_url"] ? (
+                      <img
+                        src={profile["avatar_url"] as string}
+                        alt={fullName || "User Profile"}
+                        className="h-16 w-16 shrink-0 rounded-full object-cover border-2 border-primary/20 shadow-sm"
+                      />
+                    ) : (
+                      <span className="grid h-16 w-16 place-items-center rounded-full bg-primary-soft font-display text-primary text-2xl font-bold border border-primary/20 shadow-sm">
+                        {initialLetter}
+                      </span>
+                    )}
                     <div>
                       <h2 className="font-display text-xl font-semibold text-foreground">
                         {fullName || "User Profile"}

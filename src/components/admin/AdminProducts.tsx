@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
-import { Plus, Search, Edit2, Trash2, X, Check, Loader2, AlertCircle, Image as ImageIcon, SlidersHorizontal, ArrowLeft, ArrowRight, Download, Upload, Eye } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Plus, Search, Edit2, Trash2, X, Check, Loader2, AlertCircle, Image as ImageIcon, SlidersHorizontal, ArrowLeft, ArrowRight, Download, Upload, Eye, FileImage } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PRODUCTS, CATEGORIES, type Product } from "@/data/products";
 import { inr } from "@/lib/format";
 import { toast } from "sonner";
+import { validateImageFile, uploadProductImage, deleteProductImageByUrl, deleteProductImages } from "@/lib/storage";
 
 export function AdminProducts() {
   const [products, setProducts] = useState<Product[]>(PRODUCTS);
@@ -22,6 +23,12 @@ export function AdminProducts() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Storage File Upload State
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [fileValidationError, setFileValidationError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form State
   const [form, setForm] = useState({
@@ -90,6 +97,26 @@ export function AdminProducts() {
     loadProducts();
   }, []);
 
+  const handleFileSelect = (file: File | null) => {
+    if (!file) {
+      setSelectedFile(null);
+      setImagePreview(editingProduct?.images[0] || null);
+      setFileValidationError(null);
+      return;
+    }
+
+    const validation = validateImageFile(file);
+    if (!validation.valid) {
+      setFileValidationError(validation.error || "Invalid file selected.");
+      setSelectedFile(null);
+      setImagePreview(editingProduct?.images[0] || null);
+    } else {
+      setFileValidationError(null);
+      setSelectedFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
   const openAddModal = () => {
     const nextId = `min-${String(products.length + 1).padStart(3, "0")}`;
     setForm({
@@ -108,6 +135,9 @@ export function AdminProducts() {
       colors: "Ivory, Pink",
       images: "",
     });
+    setSelectedFile(null);
+    setImagePreview(null);
+    setFileValidationError(null);
     setEditingProduct(null);
     setIsAddModalOpen(true);
   };
@@ -129,6 +159,9 @@ export function AdminProducts() {
       colors: p.colors.join(", "),
       images: p.images.join(", "),
     });
+    setSelectedFile(null);
+    setImagePreview(p.images && p.images[0] ? p.images[0] : null);
+    setFileValidationError(null);
     setEditingProduct(p);
     setIsAddModalOpen(true);
   };
@@ -140,12 +173,36 @@ export function AdminProducts() {
       return;
     }
 
+    if (fileValidationError) {
+      toast.error(fileValidationError);
+      return;
+    }
+
     setSubmitting(true);
+    let uploadedPublicUrl: string | undefined = undefined;
+
     try {
+      // 1. Upload file to Supabase Storage if a new file was chosen
+      if (selectedFile) {
+        toast.info("Uploading product image...");
+        const uploadRes = await uploadProductImage(form.id, selectedFile);
+        if (!uploadRes.success || !uploadRes.publicUrl) {
+          toast.error(uploadRes.error || "Product image upload failed. Please try again.");
+          setSubmitting(false);
+          return;
+        }
+        uploadedPublicUrl = uploadRes.publicUrl;
+      }
+
       const discountVal = Math.max(0, Math.round(((form.originalPrice - form.price) / form.originalPrice) * 100));
       const sizesArray = form.sizes.split(",").map((s) => s.trim()).filter(Boolean);
       const colorsArray = form.colors.split(",").map((c) => c.trim()).filter(Boolean);
-      const imagesArray = form.images.split(",").map((img) => img.trim()).filter(Boolean);
+      
+      let imagesArray = form.images.split(",").map((img) => img.trim()).filter(Boolean);
+      if (uploadedPublicUrl) {
+        imagesArray = [uploadedPublicUrl, ...imagesArray.filter((url) => url !== uploadedPublicUrl)];
+      }
+
       const categoryObj = CATEGORIES.find((c) => c.slug === form.category);
       const catLabel = categoryObj ? categoryObj.label : form.category;
 
@@ -171,14 +228,32 @@ export function AdminProducts() {
       const { error } = await supabase.from("products").upsert(payload, { onConflict: "id" });
 
       if (error) {
+        console.error("[PRODUCT IMAGE] Database update failed:", error);
+        // Clean up orphaned uploaded storage image if database save failed
+        if (uploadedPublicUrl) {
+          await deleteProductImageByUrl(uploadedPublicUrl);
+        }
         toast.error(error.message || "Failed to save product in database.");
       } else {
+        console.log("[PRODUCT IMAGE] Database updated successfully.");
+        
+        // If editing product and replaced image, clean up old storage file
+        if (editingProduct && uploadedPublicUrl) {
+          const oldPrimaryImage = editingProduct.images[0];
+          if (oldPrimaryImage && oldPrimaryImage !== uploadedPublicUrl) {
+            await deleteProductImageByUrl(oldPrimaryImage);
+          }
+        }
+
         toast.success(editingProduct ? "Product updated successfully!" : "New product created successfully!");
         setIsAddModalOpen(false);
         await loadProducts();
       }
     } catch (err: any) {
       console.error("Save product error:", err);
+      if (uploadedPublicUrl) {
+        await deleteProductImageByUrl(uploadedPublicUrl);
+      }
       toast.error("An error occurred while saving product.");
     } finally {
       setSubmitting(false);
@@ -194,6 +269,9 @@ export function AdminProducts() {
       if (error) {
         toast.error(error.message || "Could not delete product.");
       } else {
+        if (deletingProduct.images && deletingProduct.images.length > 0) {
+          await deleteProductImages(deletingProduct.images);
+        }
         toast.success(`Product "${deletingProduct.name}" deleted.`);
         setDeletingProduct(null);
         await loadProducts();
@@ -611,6 +689,79 @@ export function AdminProducts() {
                 </div>
               </div>
 
+              {/* Product Image File Upload & Preview Section */}
+              <div className="space-y-2 border border-[#E5E5E0] bg-[#FAF9F6] p-4 rounded-xl">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-[#5C0620] uppercase tracking-wider flex items-center gap-1.5">
+                    <FileImage size={13} />
+                    <span>Product Image Upload (JPG, PNG, WEBP — Max 5MB)</span>
+                  </label>
+                  {selectedFile && (
+                    <span className="text-[10px] font-mono text-[#10B981] font-bold">
+                      File Selected ({(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)
+                    </span>
+                  )}
+                </div>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/jpg"
+                  onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
+                  className="hidden"
+                />
+
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  {/* Image Preview Box */}
+                  <div className="h-24 w-24 rounded-xl border border-[#E5E5E0] bg-[#FFFFFF] overflow-hidden flex-shrink-0 shadow-inner flex items-center justify-center relative group">
+                    {imagePreview ? (
+                      <img src={imagePreview} alt="Preview" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="text-center p-2 text-[#A8A29E]">
+                        <ImageIcon size={20} className="mx-auto mb-1 opacity-60" />
+                        <span className="text-[9px] font-medium block">No image</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Upload Actions & Details */}
+                  <div className="flex-1 space-y-2 text-left w-full">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-3.5 py-2 rounded-xl bg-[#5C0620] text-xs font-bold text-[#FFFFFF] hover:bg-[#4A0216] shadow-sm flex items-center gap-1.5 transition-all"
+                      >
+                        <Upload size={13} />
+                        <span>{selectedFile || imagePreview ? "Change Image File" : "Choose Image File"}</span>
+                      </button>
+
+                      {selectedFile && (
+                        <button
+                          type="button"
+                          onClick={() => handleFileSelect(null)}
+                          className="px-3 py-2 rounded-xl border border-[#E5E5E0] bg-[#FFFFFF] text-xs font-bold text-[#EF4444] hover:bg-[#FEF2F2] transition-all"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+
+                    <p className="text-[10px] text-[#78716C] leading-snug">
+                      Select a high quality image file from your computer. The image will be safely uploaded to Supabase Storage (<code className="bg-[#E5E5E0]/60 px-1 py-0.5 rounded text-[9px]">product-images</code>).
+                    </p>
+
+                    {fileValidationError && (
+                      <div className="p-2.5 rounded-lg border border-[#EF4444]/30 bg-[#FEF2F2] text-[#EF4444] text-[10px] font-bold flex items-center gap-1.5">
+                        <AlertCircle size={13} className="shrink-0" />
+                        <span>{fileValidationError}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Optional Manual Image URLs input for backward compatibility */}
               <div className="space-y-1">
                 <label className="text-[9px] font-bold text-[#78716C] uppercase tracking-wider">Image URLs (comma separated)</label>
                 <input
