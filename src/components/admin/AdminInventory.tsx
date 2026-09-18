@@ -79,6 +79,22 @@ export function AdminInventory() {
 
   useEffect(() => {
     loadData();
+
+    const invChannel = supabase
+      .channel("admin-inventory-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "inventory" },
+        (payload) => {
+          console.log("[INVENTORY] Realtime inventory update:", payload);
+          loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(invChannel);
+    };
   }, []);
 
   const handleUpdateStock = async (item: InventoryItem, newQty: number) => {

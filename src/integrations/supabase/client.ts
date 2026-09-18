@@ -9,6 +9,7 @@ if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KE
   console.log("[SUPABASE] Client initialized");
 }
 
+console.log("[SUPABASE] Connected VITE_SUPABASE_URL:", supabaseUrl);
 console.log("[SUPABASE] Storage bucket: product-images");
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);

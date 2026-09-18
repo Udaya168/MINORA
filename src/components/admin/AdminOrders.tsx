@@ -20,6 +20,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { inr } from "@/lib/format";
 import { toast } from "sonner";
 import { useStore } from "@/lib/store";
+import { playOrderAcceptedSound, playOrderRejectedSound } from "@/lib/audio";
+import { processOrderAcceptance } from "@/lib/order-actions";
 
 type OrderItemDetail = {
   id: string;
@@ -78,7 +80,7 @@ export function AdminOrders({
   // Rejection modal states
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [orderToReject, setOrderToReject] = useState<OrderRecord | null>(null);
-  const [rejectionChoice, setRejectionChoice] = useState<"out_of_stock" | "unable_to_fulfil" | "custom">("out_of_stock");
+  const [rejectionChoice, setRejectionChoice] = useState<"product_unavailable" | "order_issue" | "other">("product_unavailable");
   const [customReason, setCustomReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -104,13 +106,14 @@ export function AdminOrders({
         .select("*, order_items(*)")
         .order("created_at", { ascending: false });
 
-      if (!error && data) {
-        setOrders(data as OrderRecord[]);
+      if (error) {
+        console.error("Error loading orders:", error.message);
+        toast.error("Failed to load orders.");
       } else {
-        setOrders([]);
+        setOrders((data || []) as OrderRecord[]);
       }
-    } catch (e) {
-      setOrders([]);
+    } catch (err) {
+      console.error("Orders exception:", err);
     } finally {
       setLoading(false);
     }
@@ -123,59 +126,19 @@ export function AdminOrders({
   const handleAcceptOrder = async (orderId: string) => {
     setActionLoading(true);
     try {
-      // 1. Verify concurrency / current status
-      const { data: latestOrder, error: checkErr } = await supabase
-        .from("orders")
-        .select("status")
-        .eq("id", orderId)
-        .maybeSingle();
-
-      if (checkErr || !latestOrder) {
-        toast.error("Order not found or has been removed.");
-        setActionLoading(false);
-        return;
-      }
-
-      if (latestOrder.status !== "pending") {
-        toast.error(`Order has already been processed (Current status: ${latestOrder.status}).`);
-        setActionLoading(false);
-        await loadOrders();
-        return;
-      }
-
-      const adminId = session?.user?.id || "admin";
-      const now = new Date().toISOString();
-
-      // 2. Perform atomic status transition
-      const { error: updateErr } = await supabase
-        .from("orders")
-        .update({
-          status: "accepted",
-          accepted_at: now,
-          accepted_by: adminId,
-          updated_at: now,
-        })
-        .eq("id", orderId)
-        .eq("status", "pending");
-
-      if (updateErr) {
-        toast.error(updateErr.message || "Failed to accept order.");
-      } else {
-        toast.success(`Order #${orderId.slice(0, 8)} ACCEPTED successfully!`);
-        
-        // Update local state immediately
+      const res = await processOrderAcceptance(orderId);
+      if (res.success) {
+        const now = new Date().toISOString();
         setOrders((prev) =>
           prev.map((o) =>
             o.id === orderId
-              ? { ...o, status: "accepted", accepted_at: now, accepted_by: adminId }
+              ? { ...o, status: "confirmed", accepted_at: now, rejected_at: null, rejection_reason: null }
               : o
           )
         );
 
         if (selectedOrder && selectedOrder.id === orderId) {
-          setSelectedOrder((prev) =>
-            prev ? { ...prev, status: "accepted", accepted_at: now, accepted_by: adminId } : null
-          );
+          setSelectedOrder((prev) => (prev ? { ...prev, status: "confirmed", accepted_at: now, rejected_at: null, rejection_reason: null } : null));
         }
       }
     } catch (err) {
@@ -192,7 +155,7 @@ export function AdminOrders({
       return;
     }
     setOrderToReject(order);
-    setRejectionChoice("out_of_stock");
+    setRejectionChoice("product_unavailable");
     setCustomReason("");
     setRejectModalOpen(true);
   };
@@ -201,10 +164,10 @@ export function AdminOrders({
     if (!orderToReject) return;
 
     let finalReasonText = "";
-    if (rejectionChoice === "out_of_stock") {
-      finalReasonText = "Out of Stock";
-    } else if (rejectionChoice === "unable_to_fulfil") {
-      finalReasonText = "Unable to Fulfil Order";
+    if (rejectionChoice === "product_unavailable") {
+      finalReasonText = "Product unavailable";
+    } else if (rejectionChoice === "order_issue") {
+      finalReasonText = "Customizable/order issue";
     } else {
       finalReasonText = customReason.trim();
       if (!finalReasonText) {
@@ -214,6 +177,8 @@ export function AdminOrders({
     }
 
     const orderId = orderToReject.id;
+    const adminId = session?.user?.id || "admin";
+    const now = new Date().toISOString();
     setActionLoading(true);
 
     try {
@@ -232,19 +197,13 @@ export function AdminOrders({
         return;
       }
 
-      const adminId = session?.user?.id || "admin";
-      const now = new Date().toISOString();
-
       // 2. Perform atomic rejection update
       const { error: updateErr } = await supabase
         .from("orders")
         .update({
           status: "rejected",
-          rejection_reason_type: rejectionChoice,
-          rejection_reason_text: finalReasonText,
           rejection_reason: finalReasonText,
           rejected_at: now,
-          rejected_by: adminId,
           updated_at: now,
         })
         .eq("id", orderId)
@@ -254,6 +213,7 @@ export function AdminOrders({
         toast.error(updateErr.message || "Failed to reject order.");
       } else {
         toast.success(`Order #${orderId.slice(0, 8)} REJECTED.`);
+        playOrderRejectedSound();
 
         // Update local state immediately
         setOrders((prev) =>
@@ -702,49 +662,49 @@ export function AdminOrders({
                   <input
                     type="radio"
                     name="rejectionReason"
-                    value="out_of_stock"
-                    checked={rejectionChoice === "out_of_stock"}
-                    onChange={() => setRejectionChoice("out_of_stock")}
+                    value="product_unavailable"
+                    checked={rejectionChoice === "product_unavailable"}
+                    onChange={() => setRejectionChoice("product_unavailable")}
                     className="accent-[#5C0620]"
                   />
-                  <span className="font-semibold text-[#1C1917]">Out of Stock</span>
+                  <span className="font-semibold text-[#1C1917]">Product unavailable</span>
                 </label>
 
                 <label className="flex items-center gap-2.5 p-3 rounded-xl border border-[#E5E5E0] cursor-pointer hover:bg-[#FAF9F6] transition-all">
                   <input
                     type="radio"
                     name="rejectionReason"
-                    value="unable_to_fulfil"
-                    checked={rejectionChoice === "unable_to_fulfil"}
-                    onChange={() => setRejectionChoice("unable_to_fulfil")}
+                    value="order_issue"
+                    checked={rejectionChoice === "order_issue"}
+                    onChange={() => setRejectionChoice("order_issue")}
                     className="accent-[#5C0620]"
                   />
-                  <span className="font-semibold text-[#1C1917]">Unable to Fulfil Order</span>
+                  <span className="font-semibold text-[#1C1917]">Customizable/order issue</span>
                 </label>
 
                 <label className="flex items-center gap-2.5 p-3 rounded-xl border border-[#E5E5E0] cursor-pointer hover:bg-[#FAF9F6] transition-all">
                   <input
                     type="radio"
                     name="rejectionReason"
-                    value="custom"
-                    checked={rejectionChoice === "custom"}
-                    onChange={() => setRejectionChoice("custom")}
+                    value="other"
+                    checked={rejectionChoice === "other"}
+                    onChange={() => setRejectionChoice("other")}
                     className="accent-[#5C0620]"
                   />
-                  <span className="font-semibold text-[#1C1917]">Custom Reason</span>
+                  <span className="font-semibold text-[#1C1917]">Other</span>
                 </label>
               </div>
 
-              {rejectionChoice === "custom" && (
+              {rejectionChoice === "other" && (
                 <div className="space-y-1 pt-1">
                   <label className="block text-[10px] font-bold text-[#78716C] uppercase tracking-wider">
-                    Custom Rejection Reason <span className="text-rose-500">*</span>
+                    Enter rejection reason <span className="text-rose-500">*</span>
                   </label>
                   <textarea
                     rows={3}
                     value={customReason}
                     onChange={(e) => setCustomReason(e.target.value)}
-                    placeholder="Enter rejection reason..."
+                    placeholder="Enter rejection reason"
                     className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] p-3 text-xs outline-none focus:border-[#5C0620] transition-all"
                   />
                 </div>

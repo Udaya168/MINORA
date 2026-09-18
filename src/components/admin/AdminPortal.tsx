@@ -22,6 +22,12 @@ import {
   Trash2,
   CheckCircle,
   AlertTriangle,
+  Eye,
+  XCircle,
+  AlertCircle,
+  Loader2,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { AdminDashboard } from "./AdminDashboard";
@@ -33,6 +39,8 @@ import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { inr } from "@/lib/format";
+import { triggerOrderAlertSound, playOrderAcceptedSound, playOrderRejectedSound } from "@/lib/audio";
+import { processOrderAcceptance } from "@/lib/order-actions";
 
 type AdminNotification = {
   id: string;
@@ -96,25 +104,52 @@ export function AdminPortal() {
   const [systemNotifications, setSystemNotifications] = useState<AdminNotification[]>([]);
   const [selectedOrderIdToOpen, setSelectedOrderIdToOpen] = useState<string | null>(null);
 
+  // Active Realtime Order Notification Queue Stack (Clip N Copy style)
+  const [activeNewOrders, setActiveNewOrders] = useState<Record<string, any>[]>([]);
+
+  // Rejection modal state from notification stack
+  const [notifRejectModalOpen, setNotifRejectModalOpen] = useState(false);
+  const [notifOrderToReject, setNotifOrderToReject] = useState<Record<string, any> | null>(null);
+  const [notifRejectionChoice, setNotifRejectionChoice] = useState<"product_unavailable" | "order_issue" | "other">("product_unavailable");
+  const [notifCustomReason, setNotifCustomReason] = useState("");
+  const [notifActionLoading, setNotifActionLoading] = useState(false);
+
   const searchInputRef = useRef<HTMLInputElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
 
-  // Audio & Alarm deduplication refs
-  const playedOrderAlarmsRef = useRef<Set<string>>(new Set());
-  const activeAudioStopFnRef = useRef<(() => void) | null>(null);
-
-  // Unlock browser audio context on user interaction
+  // Centralized Sound & Notification Alarm Manager
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const soundEnabledRef = useRef(soundEnabled);
   useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+  }, [soundEnabled]);
+
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
+
+  // Audio deduplication ref
+  const processedOrderIdsRef = useRef<Set<string>>(new Set());
+
+  // Unlock browser audio context & request Notification permission on user interaction
+  useEffect(() => {
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+
     const unlockAudio = () => {
       try {
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
         if (AudioCtx) {
           const dummyCtx = new AudioCtx();
-          dummyCtx.resume();
+          if (dummyCtx.state === "suspended") {
+            dummyCtx.resume().then(() => setAudioUnlocked(true)).catch(() => {});
+          } else {
+            setAudioUnlocked(true);
+          }
         }
       } catch (e) {}
     };
+
     window.addEventListener("click", unlockAudio, { once: true });
     window.addEventListener("keydown", unlockAudio, { once: true });
     return () => {
@@ -124,180 +159,90 @@ export function AdminPortal() {
   }, []);
 
   /**
-   * Synthesizes a pleasant double-chime order alert sound for ~10 seconds.
+   * Synthesizes a clean professional order alert sound pattern:
+   * ding (587.33Hz) -> pause -> ding (880Hz) -> pause -> ding (1174.66Hz)
    */
-  const playOrderAlarmSound = (orderId: string) => {
-    if (playedOrderAlarmsRef.current.has(orderId)) {
-      console.log(`[ALARM] Duplicate order alert ignored: ${orderId}`);
-      return;
-    }
-
-    playedOrderAlarmsRef.current.add(orderId);
-
-    console.log(`[ALARM] New order sound requested: ${orderId}`);
-    console.log(`[ALARM] Playing order alert: ${orderId}`);
+  const triggerCentralChimePattern = () => {
+    if (!soundEnabled) return;
 
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
       const ctx = new AudioCtx();
-      let active = true;
+      if (ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+      const t = ctx.currentTime;
 
-      const playChime = (t: number) => {
-        if (!active) return;
+      const playSingleTone = (freq: number, offset: number) => {
         try {
-          const osc1 = ctx.createOscillator();
-          const gain1 = ctx.createGain();
-          osc1.type = "sine";
-          osc1.frequency.setValueAtTime(587.33, t); // D5
-          gain1.gain.setValueAtTime(0.15, t);
-          gain1.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-          osc1.connect(gain1);
-          gain1.connect(ctx.destination);
-          osc1.start(t);
-          osc1.stop(t + 0.4);
-
-          const osc2 = ctx.createOscillator();
-          const gain2 = ctx.createGain();
-          osc2.type = "sine";
-          osc2.frequency.setValueAtTime(880, t + 0.15); // A5
-          gain2.gain.setValueAtTime(0.2, t + 0.15);
-          gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
-          osc2.connect(gain2);
-          gain2.connect(ctx.destination);
-          osc2.start(t + 0.15);
-          osc2.stop(t + 0.6);
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(freq, t + offset);
+          gain.gain.setValueAtTime(0.2, t + offset);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t + offset + 0.35);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(t + offset);
+          osc.stop(t + offset + 0.35);
         } catch (e) {}
       };
 
-      const startTime = ctx.currentTime;
-      for (let sec = 0; sec < 10; sec += 1.3) {
-        playChime(startTime + sec);
-      }
+      // ding -> pause -> ding -> pause -> ding
+      playSingleTone(587.33, 0);       // D5
+      playSingleTone(880, 0.25);       // A5
+      playSingleTone(1174.66, 0.5);    // D6
 
-      const stopFn = () => {
-        active = false;
+      setTimeout(() => {
         try {
           ctx.close();
         } catch (e) {}
-      };
-
-      activeAudioStopFnRef.current = stopFn;
-
-      setTimeout(() => {
-        stopFn();
-        console.log(`[ALARM] Played successfully: ${orderId}`);
-      }, 10000);
+      }, 1200);
     } catch (err) {
-      console.warn("[ALARM] Web Audio synthesis notice:", err);
+      console.warn("[ALARM MANAGER] Web Audio notice:", err);
     }
   };
 
-  /**
-   * Shows custom prominent notification card for incoming real-time orders
-   */
-  const showNewOrderToast = (newOrder: any) => {
-    const orderId = newOrder.id || "";
-    const shortId = orderId ? orderId.slice(0, 8) : "NEW";
-    const customerName = newOrder.customer_name || "Customer";
-    const itemsCount = newOrder.order_items ? newOrder.order_items.length : 1;
-    const totalAmount = newOrder.total || 0;
-
-    toast.custom(
-      (t) => (
-        <div className="bg-[#FFFFFF] border-2 border-[#5C0620] rounded-2xl p-5 shadow-2xl text-left flex flex-col gap-3 max-w-sm w-full animate-in slide-in-from-bottom duration-200 select-none">
-          <div className="flex justify-between items-center border-b border-[#E5E5E0] pb-2">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#5C0620] opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#5C0620]"></span>
-              </span>
-              <span className="text-xs font-extrabold text-[#5C0620] uppercase tracking-wider">
-                NEW ORDER RECEIVED
-              </span>
-            </div>
-            <button
-              onClick={() => {
-                if (activeAudioStopFnRef.current) activeAudioStopFnRef.current();
-                toast.dismiss(t);
-              }}
-              className="text-[#A8A29E] hover:text-[#1C1917] p-1 rounded-lg hover:bg-[#FAF9F6]"
-            >
-              <X size={14} />
-            </button>
-          </div>
-
-          <div className="space-y-1.5 text-xs text-[#1C1917]">
-            <div className="flex justify-between items-center">
-              <span className="text-[#78716C] font-medium">Order ID:</span>
-              <span className="font-mono font-bold text-[#5C0620]">#{shortId}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-[#78716C] font-medium">Customer:</span>
-              <span className="font-bold">{customerName}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-[#78716C] font-medium">Items:</span>
-              <span className="font-mono font-bold">{itemsCount}</span>
-            </div>
-            <div className="flex justify-between items-center text-sm font-bold border-t border-[#F5F5F0] pt-1.5">
-              <span className="text-[#78716C]">Total:</span>
-              <span className="text-[#5C0620]">{inr(totalAmount)}</span>
-            </div>
-          </div>
-
-          <button
-            onClick={() => {
-              if (activeAudioStopFnRef.current) activeAudioStopFnRef.current();
-              toast.dismiss(t);
-              setActiveTab("orders");
-              setSelectedOrderIdToOpen(orderId);
-            }}
-            className="w-full mt-1 py-2.5 rounded-xl bg-[#5C0620] text-[#FFFFFF] text-xs font-bold tracking-widest uppercase hover:bg-[#5C0620]/90 transition-all flex items-center justify-center gap-1.5 shadow-md shadow-[#5C0620]/20 cursor-pointer"
-          >
-            <span>VIEW ORDER</span>
-          </button>
-        </div>
-      ),
-      { duration: 15000 }
-    );
-  };
-
-  // Command + K shortcut
+  // Centralized Repeating Alarm Interval: Repeats chime pattern while active unhandled orders exist
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        setSearchModalOpen((prev) => !prev);
-      }
-      if (e.key === "Escape") {
-        setSearchModalOpen(false);
-        setProfileMenuOpen(false);
-        setNotificationsOpen(false);
-      }
+    if (activeNewOrders.length === 0 || !soundEnabled) return;
+
+    console.log(`[ORDER ALARM MANAGER] Starting alert loop for ${activeNewOrders.length} active order(s)`);
+    
+    triggerOrderAlertSound(soundEnabled);
+
+    const timer = setInterval(() => {
+      triggerOrderAlertSound(soundEnabled);
+    }, 3500);
+
+    return () => {
+      console.log("[ORDER ALARM MANAGER] Alarm loop cleared");
+      clearInterval(timer);
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [activeNewOrders.length, soundEnabled]);
 
-  useEffect(() => {
-    if (searchModalOpen && searchInputRef.current) {
-      setTimeout(() => searchInputRef.current?.focus(), 100);
+  // Fetch initial unacknowledged pending orders for persistence across page refreshes
+  const loadPendingOrders = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (!error && data) {
+        setActiveNewOrders(data as Record<string, any>[]);
+        data.forEach((o) => {
+          const oId = String(o["id"]);
+          processedOrderIdsRef.current.add(oId);
+        });
+      }
+    } catch (err) {
+      console.warn("[ADMIN ORDERS] Could not load pending orders:", err);
     }
-  }, [searchModalOpen]);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
-        setProfileMenuOpen(false);
-      }
-      if (notificationsRef.current && !notificationsRef.current.contains(e.target as Node)) {
-        setNotificationsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  };
 
   // Fetch saved notifications
   const loadNotifications = async () => {
@@ -324,60 +269,211 @@ export function AdminPortal() {
     }
   };
 
-  // REALTIME ORDERS SUBSCRIPTION (admin-orders-realtime)
+  // REALTIME ORDERS SUBSCRIPTION
   useEffect(() => {
     loadNotifications();
+    loadPendingOrders();
 
-    console.log("[REALTIME ORDERS] Connecting...");
+    let orderChannel: any = null;
+    let isMounted = true;
+    let reconnectTimer: any = null;
 
-    const orderChannel = supabase
-      .channel("admin-orders-realtime")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "orders" },
-        (payload) => {
-          const newOrder = payload.new as Record<string, any>;
-          const orderId = String(newOrder?.["id"] || "");
+    const setupRealtimeSubscription = async () => {
+      console.log("[REALTIME] CONNECTING");
 
-          console.log(`[REALTIME ORDERS] INSERT received: ${orderId}`);
-          console.log(`[ADMIN ALERT] New order received: ${orderId}`);
-          console.log(`[ADMIN ALERT] Playing order alarm: ${orderId}`);
-
-          playOrderAlarmSound(orderId);
-          showNewOrderToast(newOrder);
-
-          // Add to local notifications list
-          const newNotif: AdminNotification = {
-            id: `notif_${orderId}_${Date.now()}`,
-            type: "order",
-            title: "New Order Received",
-            message: `Order #${orderId.slice(0, 8)} placed by ${newOrder?.["customer_name"] || "Customer"}`,
-            order_id: orderId,
-            is_read: false,
-            created_at: new Date().toISOString(),
-          };
-
-          setSystemNotifications((prev) => [newNotif, ...prev]);
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData?.session?.access_token) {
+          supabase.realtime.setAuth(sessionData.session.access_token);
         }
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "orders" },
-        (payload) => {
-          const updatedOrder = payload.new as Record<string, any>;
-          console.log(`[REALTIME ORDERS] UPDATE received: ${updatedOrder?.["id"]}`);
-        }
-      )
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          console.log("[REALTIME ORDERS] SUBSCRIBED");
-        }
-      });
+      } catch (e) {
+        console.warn("[REALTIME] Auth token error:", e);
+      }
+
+      orderChannel = supabase
+        .channel("admin-orders-realtime")
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "orders",
+          },
+          (payload) => {
+            const newOrder = payload.new as Record<string, any>;
+            const orderId = String(newOrder?.["id"] || "");
+
+            console.log("[REALTIME] NEW ORDER:", payload.new);
+            console.log(`[REALTIME] Order ID: ${orderId}`);
+
+            if (!orderId || processedOrderIdsRef.current.has(orderId)) {
+              console.log(`[REALTIME] Duplicate INSERT event ignored for: ${orderId}`);
+              return;
+            }
+
+            processedOrderIdsRef.current.add(orderId);
+
+            // Add to active notification queue
+            setActiveNewOrders((prev) => {
+              if (prev.some((o) => o["id"] === orderId)) {
+                return prev;
+              }
+              return [newOrder, ...prev];
+            });
+
+            // Add to system notifications list (increments notification count)
+            const newNotif: AdminNotification = {
+              id: `notif_${orderId}_${Date.now()}`,
+              type: "order",
+              title: "New Order Received",
+              message: `Order #${orderId.slice(0, 8)} placed by ${newOrder?.["customer_name"] || "Customer"}`,
+              order_id: orderId,
+              is_read: false,
+              created_at: new Date().toISOString(),
+            };
+
+            setSystemNotifications((prev) => [newNotif, ...prev]);
+            console.log("[REALTIME] NOTIFICATION ADDED");
+
+            // Trigger Alarm Sound
+            triggerOrderAlertSound(soundEnabledRef.current);
+            console.log("[REALTIME] ALARM PLAYED");
+
+            // Browser Notification API if permitted
+            if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+              try {
+                const n = new Notification("NEW ORDER RECEIVED", {
+                  body: `New order from ${newOrder?.["customer_name"] || "Customer"} — Order #${orderId.slice(0, 8)}`,
+                  icon: "/favicon.ico",
+                });
+                n.onclick = () => {
+                  window.focus();
+                  setActiveTab("orders");
+                  setSelectedOrderIdToOpen(orderId);
+                };
+              } catch (e) {}
+            }
+          }
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "orders",
+          },
+          (payload) => {
+            const updatedOrder = payload.new as Record<string, any>;
+            const updatedId = String(updatedOrder?.["id"] || "");
+            const updatedStatus = updatedOrder?.["status"];
+
+            if (updatedStatus && updatedStatus !== "pending") {
+              setActiveNewOrders((prev) => prev.filter((o) => o["id"] !== updatedId));
+            }
+          }
+        )
+        .subscribe((status, err) => {
+          if (status === "SUBSCRIBED") {
+            console.log("[REALTIME] SUBSCRIBED");
+          } else {
+            console.log(`[REALTIME] subscription status: ${status}`, err || "");
+          }
+
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+            console.error(`[REALTIME] subscription error status: ${status}`, err || "");
+            if (isMounted) {
+              reconnectTimer = setTimeout(() => {
+                if (isMounted) {
+                  if (orderChannel) {
+                    supabase.removeChannel(orderChannel);
+                  }
+                  setupRealtimeSubscription();
+                }
+              }, 5000);
+            }
+          }
+        });
+    };
+
+    setupRealtimeSubscription();
 
     return () => {
-      supabase.removeChannel(orderChannel);
+      isMounted = false;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (orderChannel) supabase.removeChannel(orderChannel);
     };
   }, []);
+
+  const handleDismissNotif = (orderId: string) => {
+    setActiveNewOrders((prev) => prev.filter((o) => o["id"] !== orderId));
+  };
+
+  const handleViewOrderFromNotif = (orderId: string) => {
+    setActiveTab("orders");
+    setSelectedOrderIdToOpen(orderId);
+  };
+
+  const handleAcceptOrderFromNotif = async (orderId: string) => {
+    const res = await processOrderAcceptance(orderId);
+    if (res.success) {
+      setActiveNewOrders((prev) => prev.filter((o) => o["id"] !== orderId));
+    }
+  };
+
+  const handleRejectClickFromNotif = (order: Record<string, any>) => {
+    setNotifOrderToReject(order);
+    setNotifRejectionChoice("product_unavailable");
+    setNotifCustomReason("");
+    setNotifRejectModalOpen(true);
+  };
+
+  const handleConfirmNotifRejection = async () => {
+    if (!notifOrderToReject) return;
+
+    let finalReasonText = "";
+    if (notifRejectionChoice === "product_unavailable") {
+      finalReasonText = "Product unavailable";
+    } else if (notifRejectionChoice === "order_issue") {
+      finalReasonText = "Customizable/order issue";
+    } else {
+      finalReasonText = notifCustomReason.trim();
+      if (!finalReasonText) {
+        toast.error("Please enter a custom rejection reason.");
+        return;
+      }
+    }
+
+    const orderId = String(notifOrderToReject?.["id"] || "");
+    const now = new Date().toISOString();
+    setNotifActionLoading(true);
+
+    try {
+      const { error } = await supabase
+        .from("orders")
+        .update({
+          status: "rejected",
+          rejection_reason: finalReasonText,
+          rejected_at: now,
+          updated_at: now,
+        })
+        .eq("id", orderId)
+        .eq("status", "pending");
+
+      if (error) {
+        toast.error(error.message || "Failed to reject order.");
+      } else {
+        toast.success(`Order #${orderId.slice(0, 8)} REJECTED.`);
+        setActiveNewOrders((prev) => prev.filter((o) => o["id"] !== orderId));
+        setNotifRejectModalOpen(false);
+        setNotifOrderToReject(null);
+        playOrderRejectedSound();
+      }
+    } catch (err) {
+      toast.error("Failed to reject order.");
+    } finally {
+      setNotifActionLoading(false);
+    }
+  };
 
   const handleNotificationClick = async (notif: AdminNotification) => {
     setNotificationsOpen(false);
@@ -528,6 +624,29 @@ export function AdminPortal() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Sound Alert Toggle Control */}
+            <button
+              onClick={() => {
+                const nextState = !soundEnabled;
+                setSoundEnabled(nextState);
+                if (nextState) {
+                  triggerCentralChimePattern();
+                  toast.success("Order alarm alerts enabled.");
+                } else {
+                  toast.info("Order alarm alerts muted.");
+                }
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                soundEnabled
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                  : "border-[#E5E5E0] bg-[#FAF9F6] text-[#78716C] hover:bg-[#F5F5F0]"
+              }`}
+              title={soundEnabled ? "Mute Order Sound Alerts" : "Enable Order Sound Alerts"}
+            >
+              {soundEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
+              <span className="hidden sm:inline">{soundEnabled ? "Alerts ON" : "Alerts OFF"}</span>
+            </button>
+
             {/* Notification Bell */}
             <div className="relative" ref={notificationsRef}>
               <button
@@ -735,6 +854,204 @@ export function AdminPortal() {
                   <ChevronRight size={14} className="text-[#A8A29E]" />
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REAL-TIME NEW ORDER NOTIFICATION FLOATING STACK (RIGHT-SIDE CLIP N COPY STYLE) */}
+      {activeNewOrders.length > 0 && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm w-full md:w-96 max-h-[calc(100vh-100px)] md:max-h-[85vh] flex flex-col pointer-events-none">
+          {/* Header indicator when multiple pending orders exist */}
+          {activeNewOrders.length > 1 && (
+            <div className="pointer-events-auto shrink-0 mb-2 px-3.5 py-2 rounded-xl bg-[#5C0620] text-white text-[11px] font-bold flex items-center justify-between shadow-xl border border-[#5C0620]">
+              <span className="flex items-center gap-1.5">
+                <ShoppingBag size={14} className="animate-pulse" />
+                <span>{activeNewOrders.length} Pending Orders Alert</span>
+              </span>
+              <span className="text-[10px] opacity-90 font-medium">Scroll to view all</span>
+            </div>
+          )}
+
+          {/* Independently Scrollable Notification List */}
+          <div
+            className="pointer-events-auto overflow-y-auto flex flex-col-reverse gap-3 p-1 max-h-full pr-1.5 [overscroll-behavior:contain]"
+            style={{ overscrollBehavior: "contain" }}
+          >
+            {activeNewOrders.map((order) => {
+              const rawId = String(order?.["id"] || "");
+              const shortId = rawId ? rawId.slice(0, 8) : "NEW";
+              return (
+                <div
+                  key={rawId}
+                  className="bg-[#FFFFFF] border-2 border-[#5C0620] rounded-2xl p-4 shadow-2xl flex flex-col gap-3 animate-in slide-in-from-right duration-200 text-left select-none shrink-0"
+                >
+                  {/* Header */}
+                  <div className="flex items-center justify-between border-b border-[#E5E5E0] pb-2">
+                    <div className="flex items-center gap-2">
+                      <ShoppingBag size={16} className="text-[#5C0620] animate-bounce shrink-0" />
+                      <span className="text-xs font-black text-[#5C0620] uppercase tracking-wider">
+                        NEW ORDER RECEIVED
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleDismissNotif(rawId)}
+                      className="text-[#78716C] hover:text-[#1C1917] p-1 rounded-lg hover:bg-[#FAF9F6] transition-all"
+                      title="Dismiss Notification"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+
+                  {/* Details */}
+                  <div className="space-y-1.5 text-xs text-[#1C1917]">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[#78716C] font-medium">Customer:</span>
+                      <span className="font-bold truncate max-w-[190px]">{order?.["customer_name"] || "Customer"}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[#78716C] font-medium">Email:</span>
+                      <span className="font-medium truncate max-w-[190px]">{order?.["customer_email"] || "N/A"}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[#78716C] font-medium">Phone:</span>
+                      <span className="font-mono font-medium">{order?.["phone"] || "N/A"}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-1 border-t border-[#F5F5F0]">
+                      <span className="text-[#78716C] font-medium">Order ID:</span>
+                      <span className="font-mono font-bold text-[#5C0620]">#{shortId}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[#78716C] font-medium">Total:</span>
+                      <span className="font-bold text-sm text-[#5C0620]">{inr(order?.["total"] || 0)}</span>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[#E5E5E0]">
+                    <button
+                      onClick={() => handleViewOrderFromNotif(rawId)}
+                      className="py-1.5 px-2 rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] hover:bg-[#F5F5F0] text-[#1C1917] font-bold text-[11px] transition-all flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+                    >
+                      <Eye size={12} />
+                      <span>View Order</span>
+                    </button>
+                    <button
+                      onClick={() => handleAcceptOrderFromNotif(rawId)}
+                      className="py-1.5 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition-all flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+                    >
+                      <CheckCircle size={12} />
+                      <span>ACCEPT</span>
+                    </button>
+                    <button
+                      onClick={() => handleRejectClickFromNotif(order)}
+                      className="py-1.5 px-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] transition-all flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+                    >
+                      <XCircle size={12} />
+                      <span>REJECT</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* NOTIFICATION REJECTION REASON MODAL */}
+      {notifRejectModalOpen && notifOrderToReject && (
+        <div className="fixed inset-0 z-50 bg-[#1C1917]/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-2xl bg-[#FFFFFF] border border-[#E5E5E0] p-6 shadow-2xl space-y-5 text-left animate-in zoom-in-95 duration-150 select-none">
+            <div className="flex items-center justify-between border-b border-[#F5F5F0] pb-3">
+              <div className="flex items-center gap-2 text-rose-600">
+                <AlertCircle size={18} />
+                <h3 className="font-bold text-sm text-[#1C1917]">
+                  Reject Order #{String(notifOrderToReject?.["id"] || "").slice(0, 8)}
+                </h3>
+              </div>
+              <button
+                onClick={() => setNotifRejectModalOpen(false)}
+                className="text-[#A8A29E] hover:text-[#1C1917] p-1 rounded-lg"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <p className="text-[#78716C]">
+                Select a reason for rejecting this order. The selected reason will be displayed to the customer.
+              </p>
+
+              <div className="space-y-2">
+                <label className="flex items-center gap-2.5 p-3 rounded-xl border border-[#E5E5E0] cursor-pointer hover:bg-[#FAF9F6] transition-all">
+                  <input
+                    type="radio"
+                    name="notifRejectionReason"
+                    value="product_unavailable"
+                    checked={notifRejectionChoice === "product_unavailable"}
+                    onChange={() => setNotifRejectionChoice("product_unavailable")}
+                    className="accent-[#5C0620]"
+                  />
+                  <span className="font-semibold text-[#1C1917]">Product unavailable</span>
+                </label>
+
+                <label className="flex items-center gap-2.5 p-3 rounded-xl border border-[#E5E5E0] cursor-pointer hover:bg-[#FAF9F6] transition-all">
+                  <input
+                    type="radio"
+                    name="notifRejectionReason"
+                    value="order_issue"
+                    checked={notifRejectionChoice === "order_issue"}
+                    onChange={() => setNotifRejectionChoice("order_issue")}
+                    className="accent-[#5C0620]"
+                  />
+                  <span className="font-semibold text-[#1C1917]">Customizable/order issue</span>
+                </label>
+
+                <label className="flex items-center gap-2.5 p-3 rounded-xl border border-[#E5E5E0] cursor-pointer hover:bg-[#FAF9F6] transition-all">
+                  <input
+                    type="radio"
+                    name="notifRejectionReason"
+                    value="other"
+                    checked={notifRejectionChoice === "other"}
+                    onChange={() => setNotifRejectionChoice("other")}
+                    className="accent-[#5C0620]"
+                  />
+                  <span className="font-semibold text-[#1C1917]">Other</span>
+                </label>
+              </div>
+
+              {notifRejectionChoice === "other" && (
+                <div className="space-y-1 pt-1">
+                  <label className="block text-[10px] font-bold text-[#78716C] uppercase tracking-wider">
+                    Enter rejection reason <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={notifCustomReason}
+                    onChange={(e) => setNotifCustomReason(e.target.value)}
+                    placeholder="Enter rejection reason"
+                    className="w-full rounded-xl border border-[#E5E5E0] bg-[#FAF9F6] p-3 text-xs outline-none focus:border-[#5C0620] transition-all"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-3 border-t border-[#F5F5F0]">
+              <button
+                type="button"
+                onClick={() => setNotifRejectModalOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border border-[#E5E5E0] text-xs font-bold text-[#44403C] hover:bg-[#FAF9F6] transition-all"
+              >
+                CANCEL
+              </button>
+              <button
+                type="button"
+                disabled={notifActionLoading}
+                onClick={handleConfirmNotifRejection}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-all flex items-center justify-center gap-1.5 shadow-sm disabled:opacity-50"
+              >
+                {notifActionLoading ? <Loader2 size={14} className="animate-spin" /> : <span>CONFIRM REJECTION</span>}
+              </button>
             </div>
           </div>
         </div>

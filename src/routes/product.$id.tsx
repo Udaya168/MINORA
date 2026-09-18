@@ -83,9 +83,10 @@ function ProductPage() {
   const isMobile = useIsMobile();
   const [mobileActiveIdx, setMobileActiveIdx] = useState(0);
 
-  // Fetch Inventory for current product ID
+  // Fetch & Listen for Realtime Inventory for current product ID
   useEffect(() => {
     let isMounted = true;
+
     async function loadInventory() {
       try {
         const { data, error } = await supabase
@@ -106,9 +107,30 @@ function ProductPage() {
         // Fallback
       }
     }
+
     loadInventory();
+
+    // Realtime inventory subscription
+    const invChannel = supabase
+      .channel(`product-inventory-${product.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "inventory",
+          filter: `product_id=eq.${product.id}`,
+        },
+        (payload) => {
+          console.log("[INVENTORY] Realtime inventory update:", payload);
+          loadInventory();
+        }
+      )
+      .subscribe();
+
     return () => {
       isMounted = false;
+      supabase.removeChannel(invChannel);
     };
   }, [product.id]);
 
